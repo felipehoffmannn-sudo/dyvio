@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String     @id @default(cuid())
+  name             String?
+  email            String     @unique
+  emailVerified    DateTime?
+  image            String?
+  passwordHash     String?
+  defaultCurrency  String     @default("BRL")
+  locale           String     @default("pt-BR")
+  timezone         String     @default("America/Sao_Paulo")
+  preferences      String     @default("{}")
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  accounts         Account[]
+  sessions         Session[]
+  groupMembers     GroupMember[]
+  groupsCreated    Group[]           @relation("GroupCreator")
+  expensesPaid     Expense[]         @relation("ExpensePayer")
+  expenseParticipants ExpenseParticipant[]
+  expenseEdits     ExpenseEditHistory[]
+  paymentsFrom     Payment[]         @relation("PaymentFrom")
+  paymentsTo       Payment[]         @relation("PaymentTo")
+  ledgerEntries    LedgerEntry[]     @relation("LedgerUser")
+  counterpartyEntries LedgerEntry[]  @relation("LedgerCounterparty")
+  notifications    Notification[]
+  invitesSent      Invite[]          @relation("InviteSender")
+  attachments      Attachment[]
+  activityLogs     ActivityLog[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Group {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  type            String    @default("PERMANENT")
+  visibility      String    @default("PRIVATE")
+  defaultCurrency String    @default("BRL")
+  createdBy       String
+  isArchived      Boolean   @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  creator     User            @relation("GroupCreator", fields: [createdBy], references: [id])
+  members     GroupMember[]
+  expenses    Expense[]
+  invites     Invite[]
+  payments    Payment[]
+  ledgerEntries LedgerEntry[]
+  activities  ActivityLog[]
+}
+
+model GroupMember {
+  id       String    @id @default(cuid())
+  groupId  String
+  userId   String
+  role     String    @default("MEMBER")
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime?
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+}
+
+model Category {
+  id       String  @id @default(cuid())
+  name     String
+  icon     String?
+  color    String?
+  parentId String?
+  isSystem Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  expenses Expense[]
+}
+
+model Expense {
+  id           String    @id @default(cuid())
+  groupId      String
+  title        String
+  description  String?
+  amount       Float
+  currency     String    @default("BRL")
+  splitType    String
+  categoryId   String?
+  status       String    @default("ACTIVE")
+  paidBy       String
+  expenseDate  DateTime  @default(now())
+  location     String?
+  tags         String    @default("[]")
+  isRecurring  Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  group        Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  category     Category?             @relation(fields: [categoryId], references: [id])
+  payer        User                  @relation("ExpensePayer", fields: [paidBy], references: [id])
+  participants ExpenseParticipant[]
+  attachments  Attachment[]
+  editHistory  ExpenseEditHistory[]
+  recurrence   RecurrenceRule?
+}
+
+model ExpenseParticipant {
+  id              String  @id @default(cuid())
+  expenseId       String
+  userId          String
+  shareAmount     Float
+  sharePercentage Float?
+  shares          Int     @default(1)
+  weight          Float   @default(1.0)
+  isPayer         Boolean @default(false)
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId])
+}
+
+model ExpenseEditHistory {
+  id        String   @id @default(cuid())
+  expenseId String
+  editedBy  String
+  changes   String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  editor  User    @relation(fields: [editedBy], references: [id], onDelete: Cascade)
+}
+
+model RecurrenceRule {
+  id               String    @id @default(cuid())
+  expenseId        String    @unique
+  frequency        String
+  interval         Int       @default(1)
+  dayOfMonth       Int?
+  dayOfWeek        Int?
+  startDate        DateTime
+  endDate          DateTime?
+  totalOccurrences Int?
+  createdAt        DateTime  @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+}
+
+model LedgerEntry {
+  id             String   @id @default(cuid())
+  groupId        String
+  userId         String
+  counterpartyId String
+  balance        Float    @default(0)
+  calculatedAt   DateTime @default(now())
+  isCurrent      Boolean  @default(true)
+
+  group        Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user         User  @relation("LedgerUser", fields: [userId], references: [id])
+  counterparty User  @relation("LedgerCounterparty", fields: [counterpartyId], references: [id])
+
+  @@unique([groupId, userId, counterpartyId])
+}
+
+model Payment {
+  id         String    @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  groupId    String?
+  amount     Float
+  currency   String    @default("BRL")
+  method     String    @default("MANUAL")
+  status     String    @default("PENDING")
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  fromUser User   @relation("PaymentFrom", fields: [fromUserId], references: [id])
+  toUser   User   @relation("PaymentTo", fields: [toUserId], references: [id])
+  group    Group? @relation(fields: [groupId], references: [id])
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  groupId   String
+  email     String
+  token     String   @unique
+  status    String   @default("PENDING")
+  invitedBy String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  inviter User  @relation("InviteSender", fields: [invitedBy], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  data      String   @default("{}")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  expenseId    String
+  uploadedBy   String
+  fileUrl      String
+  fileType     String?
+  fileSize     Int?
+  originalName String?
+  createdAt    DateTime @default(now())
+
+  expense  Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploadedBy], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String?
+  action    String
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
