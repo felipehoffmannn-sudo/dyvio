@@ -12,7 +12,7 @@ export default function RegisterPage() {
             <Text color="fg.muted">Comece a dividir despesas de forma inteligente</Text>
           </VStack>
 
-          <Box as="form" action={registerUser}>
+          <form action={registerUser} style={{ width: "100%" }}>
             <VStack gap={4}>
               <Field.Root required>
                 <Field.Label>Nome</Field.Label>
@@ -28,7 +28,7 @@ export default function RegisterPage() {
               </Field.Root>
               <Button type="submit" colorPalette="green" size="lg" w="full">Criar conta</Button>
             </VStack>
-          </Box>
+          </form>
 
           <Text textAlign="center" fontSize="sm" color="fg.muted">
             Já tem conta?{" "}
