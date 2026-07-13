@@ -333,7 +333,6 @@ export default function DashboardClient(props: Props) {
                             <HStack gap={1} flexShrink={0}>
                               <Box
                                 as="button"
-                                type="button"
                                 onClick={() => openEditModal(exp)}
                                 w={7} h={7} borderRadius="md"
                                 display="flex" alignItems="center" justifyContent="center"
@@ -345,7 +344,6 @@ export default function DashboardClient(props: Props) {
                               </Box>
                               <Box
                                 as="button"
-                                type="button"
                                 onClick={() => handleDeleteExpense(exp)}
                                 w={7} h={7} borderRadius="md"
                                 display="flex" alignItems="center" justifyContent="center"
@@ -509,7 +507,7 @@ export default function DashboardClient(props: Props) {
               </Flex>
             </Flex>
 
-            <Box as="form" onSubmit={handleQuickExpense} p={6} pt={4}>
+            <form onSubmit={handleQuickExpense} p={6} pt={4}>
               {/* Grupo */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>
@@ -590,7 +588,6 @@ export default function DashboardClient(props: Props) {
                         <Box
                           key={m.id}
                           as="button"
-                          type="button"
                           onClick={() => {
                             const next = new Set(expenseParticipants)
                             if (next.has(m.id)) next.delete(m.id)
@@ -624,7 +621,7 @@ export default function DashboardClient(props: Props) {
               <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={expenseSaving}>
                 Salvar despesa
               </Button>
-            </Box>
+            </form>
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>
@@ -643,7 +640,7 @@ export default function DashboardClient(props: Props) {
               </Dialog.CloseTrigger>
             </Flex>
 
-            <Box as="form" onSubmit={handleUpdateExpense} p={6} pt={4}>
+            <form onSubmit={handleUpdateExpense} p={6} pt={4}>
               {/* Grupo (read-only) */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>
@@ -708,7 +705,7 @@ export default function DashboardClient(props: Props) {
                   Cancelar
                 </Button>
               </VStack>
-            </Box>
+            </form>
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>

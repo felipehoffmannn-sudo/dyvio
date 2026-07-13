@@ -27,7 +27,6 @@ export function ThemeToggle() {
           <HStack
             key={value}
             as="button"
-            type="button"
             gap={1.5}
             px={2.5}
             py={1}

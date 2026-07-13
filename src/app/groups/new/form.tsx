@@ -22,7 +22,7 @@ export function NewGroupForm() {
 
       {/* Form */}
       <Box flex={1} maxW="480px" mx="auto" w="full" p={{ base: 4, md: 8 }}>
-        <Box as="form" action={createGroup} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <form action={createGroup} style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           <Box>
             <Text fontSize="sm" fontWeight="medium" color="gray.600" mb={1.5}>
               Nome do grupo
@@ -64,7 +64,7 @@ export function NewGroupForm() {
           <Button type="submit" variant="primary" size="lg" w="full">
             Criar grupo
           </Button>
-        </Box>
+        </form>
       </Box>
     </Flex>
   )

@@ -130,7 +130,7 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
       </Flex>
 
       <Box flex={1} maxW="480px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
-        <Box as="form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {/* Descrição */}
           <Box>
             <HStack gap={1.5} mb={1.5}>
@@ -177,7 +177,7 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
                 const IconEl = info.icon
                 const active = splitType === type
                 return (
-                  <Box key={type} as="button" type="button" onClick={() => setSplitType(type)}
+                  <Box key={type} as="button" onClick={() => setSplitType(type)}
                     display="flex" flexDirection="column" alignItems="center" gap={1} p={3}
                     borderRadius="button" borderWidth="1px" cursor="pointer"
                     borderColor={active ? "brand.500" : "gray.200"}
@@ -204,7 +204,7 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
               {members.map(m => {
                 const sel = selectedParticipants.has(m.id)
                 return (
-                  <Flex key={m.id} as="button" type="button" onClick={() => toggleParticipant(m.id)}
+                  <Flex key={m.id} as="button" onClick={() => toggleParticipant(m.id)}
                     align="center" gap={3} px={4} py={2.5} borderRadius="button" borderWidth="1px"
                     borderColor={sel ? "brand.500" : "gray.200"} bg={sel ? "brand.50" : "white"}
                     _hover={!sel ? { borderColor: "gray.300" } : {}} transition="all 0.15s" cursor="pointer"
@@ -270,10 +270,10 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
                   <Flex key={p.id} align="center" gap={3}>
                     <Text fontSize="sm" w="80px" truncate>{memberName(p)}</Text>
                     <Flex align="center" gap={2}>
-                      <Box as="button" type="button" onClick={() => setShares(prev => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] || 1) - 1) }))}
+                      <Box as="button" onClick={() => setShares(prev => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] || 1) - 1) }))}
                         w={7} h={7} borderRadius="md" borderWidth="1px" borderColor="gray.200" display="flex" alignItems="center" justifyContent="center" fontSize="sm" _hover={{ bg: "gray.50" }}>-</Box>
                       <Text fontSize="sm" fontFamily="mono" w={6} textAlign="center">{shares[p.id] || 1}</Text>
-                      <Box as="button" type="button" onClick={() => setShares(prev => ({ ...prev, [p.id]: (prev[p.id] || 1) + 1 }))}
+                      <Box as="button" onClick={() => setShares(prev => ({ ...prev, [p.id]: (prev[p.id] || 1) + 1 }))}
                         w={7} h={7} borderRadius="md" borderWidth="1px" borderColor="gray.200" display="flex" alignItems="center" justifyContent="center" fontSize="sm" _hover={{ bg: "gray.50" }}>+</Box>
                     </Flex>
                     {splitPreview && (
@@ -289,13 +289,13 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
           <Box>
             <Text fontSize="sm" fontWeight="medium" color="gray.600" mb={2}>🏷 Categoria</Text>
             <Flex flexWrap="wrap" gap={2}>
-              <Box as="button" type="button" onClick={() => setCategoryId("")}
+              <Box as="button" onClick={() => setCategoryId("")}
                 px={3} py={1.5} borderRadius="full" borderWidth="1px" fontSize="sm" cursor="pointer"
                 borderColor={!categoryId ? "brand.500" : "gray.200"} bg={!categoryId ? "brand.50" : "white"} color={!categoryId ? "brand.600" : "gray.600"}
                 _hover={categoryId ? { borderColor: "gray.300" } : {}} transition="all 0.15s"
               >Nenhuma</Box>
               {categories.map(cat => (
-                <Box key={cat.id} as="button" type="button" onClick={() => setCategoryId(cat.id)}
+                <Box key={cat.id} as="button" onClick={() => setCategoryId(cat.id)}
                   px={3} py={1.5} borderRadius="full" borderWidth="1px" fontSize="sm" cursor="pointer"
                   borderColor={categoryId === cat.id ? "brand.500" : "gray.200"} bg={categoryId === cat.id ? "brand.50" : "white"} color={categoryId === cat.id ? "brand.600" : "gray.600"}
                   _hover={categoryId !== cat.id ? { borderColor: "gray.300" } : {}} transition="all 0.15s"
@@ -317,7 +317,7 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
           )}
 
           <Button type="submit" variant="primary" size="lg" w="full" loading={loading}>💾 Salvar despesa</Button>
-        </Box>
+        </form>
       </Box>
     </Flex>
   )

@@ -78,12 +78,12 @@ export default async function GroupSettingsPage({
                     </Box>
                   </HStack>
                   {isOwner && m.role !== "OWNER" && (
-                    <Box as="form" action={async () => {
+                    <form action={async () => {
                       "use server"
                       await removeMember(params.id, m.userId)
                     }}>
                       <Button variant="ghost" size="sm" type="submit" colorPalette="red">Remover</Button>
-                    </Box>
+                    </form>
                   )}
                 </HStack>
               ))}
@@ -100,29 +100,29 @@ export default async function GroupSettingsPage({
             <Text fontSize="sm" fontWeight="medium" color="red.500" mb={3}>Zona de perigo</Text>
             <VStack gap={3} align="stretch">
               {isOwner && (
-                <Box as="form" action={async () => {
+                <form action={async () => {
                   "use server"
                   await archiveGroup(params.id)
                 }}>
                   <Button colorPalette="red" variant="outline" type="submit" w="full">Arquivar grupo</Button>
-                </Box>
+                </form>
               )}
               {isOwner && (
-                <Box as="form" action={async () => {
+                <form action={async () => {
                   "use server"
                   await deleteGroup(params.id)
                 }}>
                   <Button colorPalette="red" type="submit" w="full">Excluir grupo permanentemente</Button>
-                </Box>
+                </form>
               )}
               {!isOwner && (
-                <Box as="form" action={async () => {
+                <form action={async () => {
                   "use server"
                   const { leaveGroup } = await import("@/lib/actions")
                   await leaveGroup(params.id)
                 }}>
                   <Button colorPalette="red" variant="outline" type="submit" w="full">Sair do grupo</Button>
-                </Box>
+                </form>
               )}
             </VStack>
           </Box>

@@ -49,7 +49,7 @@ export default async function InviteMemberPage({
           {/* Invite form */}
           <CardRoot borderRadius="card" borderWidth="1px" borderColor="gray.200">
             <CardBody p={4}>
-              <Box as="form" action={async (formData: FormData) => {
+              <form action={async (formData: FormData) => {
                 "use server"
                 const email = formData.get("email") as string
                 if (!email) return
@@ -76,7 +76,7 @@ export default async function InviteMemberPage({
                     Convidar
                   </Button>
                 </HStack>
-              </Box>
+              </form>
             </CardBody>
           </CardRoot>
 

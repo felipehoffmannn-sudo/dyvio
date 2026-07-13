@@ -281,7 +281,7 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
               </Dialog.CloseTrigger>
             </Flex>
 
-            <Box as="form" onSubmit={handleQuickExpense} p={6} pt={4}>
+            <form onSubmit={handleQuickExpense} p={6} pt={4}>
               {/* Grupo (read-only) */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>
@@ -355,7 +355,6 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
                       <Box
                         key={m.id}
                         as="button"
-                        type="button"
                         onClick={() => {
                           const next = new Set(expenseParticipants)
                           if (next.has(m.id)) next.delete(m.id)
@@ -388,7 +387,7 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
               <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={expenseSaving}>
                 Salvar despesa
               </Button>
-            </Box>
+            </form>
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>

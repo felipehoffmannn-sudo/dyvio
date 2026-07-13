@@ -111,7 +111,6 @@ function SettingsButton({ icon, label, color, onClick }: { icon: any; label: str
   return (
     <HStack
       as="button"
-      type="button"
       w="full"
       justify="space-between"
       px={4}
