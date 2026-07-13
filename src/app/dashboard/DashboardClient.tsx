@@ -507,7 +507,7 @@ export default function DashboardClient(props: Props) {
               </Flex>
             </Flex>
 
-            <form onSubmit={handleQuickExpense} p={6} pt={4}>
+            <form onSubmit={handleQuickExpense} style={{ padding: "24px 24px 16px" }}>
               {/* Grupo */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>
@@ -640,7 +640,7 @@ export default function DashboardClient(props: Props) {
               </Dialog.CloseTrigger>
             </Flex>
 
-            <form onSubmit={handleUpdateExpense} p={6} pt={4}>
+            <form onSubmit={handleUpdateExpense} style={{ padding: "24px 24px 16px" }}>
               {/* Grupo (read-only) */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>

@@ -281,7 +281,7 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
               </Dialog.CloseTrigger>
             </Flex>
 
-            <form onSubmit={handleQuickExpense} p={6} pt={4}>
+            <form onSubmit={handleQuickExpense} style={{ padding: "24px 24px 16px" }}>
               {/* Grupo (read-only) */}
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Grupo</Field.Label>
