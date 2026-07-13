@@ -72,7 +72,6 @@ export async function createGroup(formData: FormData): Promise<void> {
       members: {
         create: [
           { userId: user.id, role: "OWNER" },
-          { userId: "user2_test", role: "MEMBER" },
         ],
       },
     },
