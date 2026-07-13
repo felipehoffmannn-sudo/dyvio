@@ -76,7 +76,7 @@ export default function GroupsClient({ user, groups }: Props) {
         </HStack>
 
         <HStack gap={{ base: 1, md: 3 }}>
-          <NativeSelect.Root size="xs" w={{ base: "80px", md: "130px" }} value={selectedCurrency}>
+          <NativeSelect.Root size="xs" w={{ base: "80px", md: "130px" }}>
             <NativeSelect.Field ps={{ base: 2, md: 3 }} pe={{ base: 5, md: 7 }} value={selectedCurrency} onChange={e => setSelectedCurrency(e.target.value)}>
               <option value="BRL">BRL (R$)</option>
               <option value="USD">USD ($)</option>
