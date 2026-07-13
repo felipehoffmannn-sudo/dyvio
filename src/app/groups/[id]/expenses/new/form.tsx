@@ -316,7 +316,7 @@ export function NewExpenseForm({ groupId, members, currentUserId, categories }: 
             </Flex>
           )}
 
-          <Button type="submit" variant="primary" size="lg" w="full" loading={loading}>💾 Salvar despesa</Button>
+          <Button type="submit" colorPalette="green" size="lg" w="full" loading={loading}>💾 Salvar despesa</Button>
         </form>
       </Box>
     </Flex>

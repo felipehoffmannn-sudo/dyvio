@@ -32,7 +32,7 @@ export default async function DashboardPage() {
     if (!groupMemberMap[m.groupId]) groupMemberMap[m.groupId] = []
     groupMemberMap[m.groupId].push(m.userId)
     if (!groupMemberNames[m.groupId]) groupMemberNames[m.groupId] = []
-    groupMemberNames[m.groupId].push({ id: m.userId, name: m.user.name })
+    groupMemberNames[m.groupId].push({ id: m.userId, name: m.user.name ?? "" })
   })
 
   const groupsWithBalances = await Promise.all(
@@ -105,7 +105,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
-      user={{ name: user.name, id: user.id }}
+      user={{ name: user.name ?? "", id: user.id }}
       groupsWithBalances={groupsWithBalances}
       netBalance={netBalance}
       totalOwe={totalOwe}

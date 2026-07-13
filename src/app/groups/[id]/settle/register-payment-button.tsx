@@ -38,7 +38,7 @@ export function RegisterPaymentButton({
 
   return (
     <Button
-      variant="success"
+      colorPalette="green"
       size="sm"
       onClick={handleClick}
       loading={loading}

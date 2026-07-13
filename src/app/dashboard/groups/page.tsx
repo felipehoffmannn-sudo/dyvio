@@ -43,7 +43,7 @@ export default async function GroupsPage() {
 
   return (
     <GroupsClient
-      user={{ name: user.name, id: user.id }}
+      user={{ name: user.name ?? "", id: user.id }}
       groups={JSON.parse(JSON.stringify(groupsWithBalances))}
     />
   )

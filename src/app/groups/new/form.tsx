@@ -61,7 +61,7 @@ export function NewGroupForm() {
             />
           </Box>
 
-          <Button type="submit" variant="primary" size="lg" w="full">
+          <Button type="submit" colorPalette="green" size="lg" w="full">
             Criar grupo
           </Button>
         </form>
