@@ -318,44 +318,24 @@ export async function updateLedgerOnDelete(
  * Get net balance for a user in a group.
  * Positive = user is owed money (net creditor)
  * Negative = user owes money (net debtor)
+ *
+ * The ledger always stores TWO entries per pair (A, B):
+ *   { userId: A, counterpartyId: B, balance: +X }  →  A owes B X cents
+ *   { userId: B, counterpartyId: A, balance: -X }  →  B is owed X cents by A
+ *
+ * To get user's net position we only query one direction (userId = this user).
+ *   - balance > 0 → user owes counterparty → negative for user
+ *   - balance < 0 → counterparty owes user → positive for user
+ *   - net = -sum(balance)
  */
 export async function getNetBalanceInGroup(userId: string, groupId: string): Promise<number> {
   const entries = await prisma.ledgerEntry.findMany({
-    where: {
-      groupId,
-      userId,
-      isCurrent: true,
-    },
+    where: { groupId, userId, isCurrent: true },
     select: { balance: true },
   })
 
-  // Sum: positive means user is owed by counterparties
-  // But our ledger stores: balance > 0 means userId owes counterpartyId
-  // So the net position from userId's perspective:
-  // For entries where userId is the debtor:
-  //   balance > 0 means userId owes counterparty -> negative for userId
-  // For entries where counterparty is the debtor (we find as counterparty entries):
-  //   we need to query the inverse
-
-  const owed = entries.reduce((sum, e) => sum + Number(e.balance), 0)
-
-  // Also check entries where this user is the counterparty (others owe them)
-  const inverseEntries = await prisma.ledgerEntry.findMany({
-    where: {
-      groupId,
-      counterpartyId: userId,
-      isCurrent: true,
-    },
-    select: { balance: true },
-  })
-
-  // For inverse entries: balance > 0 means counterparty owes userId -> positive for userId
-  const isOwed = inverseEntries.reduce((sum, e) => sum + Number(e.balance), 0)
-
-  // Net: what others owe me minus what I owe others
-  // isOwed = what others owe me (from inverse entries)
-  // owed = what I owe others (from my entries)
-  return isOwed - owed
+  const totalBalance = entries.reduce((sum, e) => sum + Number(e.balance), 0)
+  return -totalBalance
 }
 
 /**
