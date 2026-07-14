@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Box, Flex, Heading, Text, Input, Button, VStack, HStack, Separator, Badge } from "@chakra-ui/react"
 import { CardRoot, CardBody } from "@chakra-ui/react"
-import { inviteMember } from "@/lib/actions"
+import { inviteMember, deleteInvite } from "@/lib/actions"
 import Link from "next/link"
 import { InviteIcon } from "./invite-icon"
 
@@ -165,6 +165,14 @@ export default async function InviteMemberPage({
                           >
                             Pendente
                           </Badge>
+                          <form action={async () => {
+                            "use server"
+                            await deleteInvite(inv.id, group.id)
+                          }}>
+                            <Button type="submit" size="xs" variant="ghost" colorPalette="red" px={1} title="Remover convite">
+                              ✕
+                            </Button>
+                          </form>
                         </HStack>
                       </Box>
                     ))}

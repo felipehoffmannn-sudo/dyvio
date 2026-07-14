@@ -141,6 +141,25 @@ export async function createShareableInvite(groupId: string) {
   return { success: true, token }
 }
 
+export async function deleteInvite(inviteId: string, groupId: string) {
+  const user = await getCurrentUser()
+
+  const membership = await prisma.groupMember.findFirst({
+    where: { groupId, userId: user.id, leftAt: null },
+  })
+  if (!membership || membership.role === "MEMBER") {
+    return { error: "Você não tem permissão para remover convites." }
+  }
+
+  await prisma.invite.delete({
+    where: { id: inviteId },
+  })
+
+  revalidatePath(`/groups/${groupId}`)
+  revalidatePath("/invites")
+  return { success: true }
+}
+
 export async function removeMember(groupId: string, memberId: string) {
   const user = await getCurrentUser()
 
