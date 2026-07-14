@@ -7,12 +7,10 @@ import { formatCurrency, formatDateShort } from "@/lib/utils"
 import Link from "next/link"
 import { DeleteExpenseButton } from "./delete-button"
 import GroupDetailClient from "./client"
+import { getSessionUser } from "@/lib/data-cache"
 
 export default async function GroupDetailPage({ params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) redirect("/auth/login")
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+  const user = await getSessionUser()
   if (!user) redirect("/auth/login")
 
   const group = await prisma.group.findUnique({
@@ -27,20 +25,22 @@ export default async function GroupDetailPage({ params }: { params: { id: string
 
   if (!group || !group.members.some(m => m.userId === user.id)) redirect("/dashboard")
 
-  const userBalance = await getNetBalanceInGroup(user.id, group.id)
-  const settlement = await computeSettlement(group.id)
+  // Paralelizar queries independentes
+  const [userBalance, settlement, expenses] = await Promise.all([
+    getNetBalanceInGroup(user.id, group.id),
+    computeSettlement(group.id),
+    prisma.expense.findMany({
+      where: { groupId: group.id, status: "ACTIVE" },
+      orderBy: { expenseDate: "desc" },
+      include: {
+        payer: { select: { id: true, name: true, image: true } },
+        participants: { include: { user: { select: { id: true, name: true } } } },
+        category: { select: { name: true, icon: true } },
+      },
+    }),
+  ])
+
   const userSettlements = settlement.filter(s => s.fromUserId === user.id || s.toUserId === user.id)
-
-  const expenses = await prisma.expense.findMany({
-    where: { groupId: group.id, status: "ACTIVE" },
-    orderBy: { expenseDate: "desc" },
-    include: {
-      payer: { select: { id: true, name: true, image: true } },
-      participants: { include: { user: { select: { id: true, name: true } } } },
-      category: { select: { name: true, icon: true } },
-    },
-  })
-
   const currentMembership = group.members.find(m => m.userId === user.id)
   const isAdmin = currentMembership?.role === "OWNER" || currentMembership?.role === "ADMIN"
 

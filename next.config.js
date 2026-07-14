@@ -7,6 +7,13 @@ const nextConfig = {
       { protocol: 'https', hostname: 'appleid.cdn-apple.com' },
     ],
   },
+  // Experimental: stale times para navegação mais rápida
+  experimental: {
+    staleTimes: {
+      static: 180, // 3 min para páginas estáticas
+      dynamic: 30, // 30s para páginas dinâmicas
+    },
+  },
 }
 
 module.exports = nextConfig

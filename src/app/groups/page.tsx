@@ -1,5 +1,3 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getNetBalanceInGroup } from "@/lib/ledger-engine"
@@ -7,14 +5,10 @@ import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
 import { Button } from "@chakra-ui/react"
 import { Plus, Users } from "lucide-react"
+import { getSessionUser } from "@/lib/data-cache"
 
 export default async function GroupsPage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) redirect("/auth/login")
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  })
+  const user = await getSessionUser()
   if (!user) redirect("/auth/login")
 
   const memberships = await prisma.groupMember.findMany({

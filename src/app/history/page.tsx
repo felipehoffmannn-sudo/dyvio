@@ -1,17 +1,11 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
 import Link from "next/link"
+import { getSessionUser } from "@/lib/data-cache"
 
 export default async function HistoryPage() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.email) redirect("/auth/login")
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  })
+  const user = await getSessionUser()
   if (!user) redirect("/auth/login")
 
   const expenses = await prisma.expense.findMany({
