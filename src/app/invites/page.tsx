@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { formatDateShort } from "@/lib/utils"
 import Link from "next/link"
-import { Button } from "@chakra-ui/react"
+import { Flex, Box, Heading, Text, VStack, HStack, Button, CardRoot, CardBody } from "@chakra-ui/react"
 
 export default async function InvitesPage() {
   const session = await getServerSession(authOptions)
@@ -25,65 +25,110 @@ export default async function InvitesPage() {
   })
 
   return (
-    <div className="min-h-screen bg-[var(--bg-page)]">
-      <header className="sticky top-0 z-40 bg-[var(--bg-page)]/80 backdrop-blur-lg border-b border-[var(--border)]">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-4">
-          <Link href="/dashboard" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">←</Link>
-          <h1 className="text-lg font-semibold">Convites</h1>
-        </div>
-      </header>
+    <Flex minH="100vh" direction="column" bg="gray.50">
+      {/* Header */}
+      <Flex
+        bg="white"
+        px={{ base: 4, md: 6 }}
+        py={3}
+        borderBottom="1px"
+        borderColor="gray.200"
+        align="center"
+        gap={3}
+      >
+        <Link href="/dashboard" style={{ color: "inherit", textDecoration: "none", flexShrink: 0 }}>
+          <Text as="span" color="gray.500" fontSize="lg">←</Text>
+        </Link>
+        <Heading as="h1" size="lg">Convites</Heading>
+      </Flex>
 
-      <main className="max-w-lg mx-auto px-4 py-6">
+      <Box flex={1} maxW="520px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
         {invites.length === 0 ? (
-          <div className="card p-12 text-center space-y-4">
-            <div className="text-4xl">📨</div>
-            <div>
-              <h3 className="font-semibold">Nenhum convite</h3>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
-                Quando alguém te convidar para um grupo, o convite aparecerá aqui.
-              </p>
-            </div>
-            <Link href="/dashboard">
-              <Button variant="outline">Ir para o início</Button>
-            </Link>
-          </div>
+          <CardRoot borderRadius="card" borderWidth="1px" borderColor="gray.200">
+            <CardBody>
+              <VStack py={10} gap={4} textAlign="center">
+                <Box
+                  w={14} h={14} borderRadius="full"
+                  bg="blue.50"
+                  display="flex" alignItems="center" justifyContent="center"
+                >
+                  <Text fontSize="2xl">📨</Text>
+                </Box>
+                <VStack gap={1}>
+                  <Heading as="h3" size="md" fontWeight="semibold">Nenhum convite</Heading>
+                  <Text fontSize="sm" color="gray.500">
+                    Quando alguém te convidar para um grupo, o convite aparecerá aqui.
+                  </Text>
+                </VStack>
+                <Link
+                  href="/dashboard"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "8px 20px",
+                    border: "1px solid #d4d4d4",
+                    borderRadius: "8px",
+                    backgroundColor: "white",
+                    color: "#525252",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    textDecoration: "none",
+                  }}
+                >
+                  Ir para o início
+                </Link>
+              </VStack>
+            </CardBody>
+          </CardRoot>
         ) : (
-          <div className="space-y-3">
+          <VStack gap={3} align="stretch">
             {invites.map(invite => (
-              <div key={invite.id} className="card p-5 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center text-lg shrink-0">
-                    👥
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold">{invite.group.name}</h3>
-                    {invite.group.description && (
-                      <p className="text-sm text-[var(--text-secondary)] mt-0.5">{invite.group.description}</p>
-                    )}
-                    <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                      Convidado por {invite.inviter.name} · {formatDateShort(invite.createdAt)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Link href={`/invite/${invite.token}`} className="flex-1">
-                    <Button colorPalette="green" w="full" size="sm">Aceitar</Button>
-                  </Link>
-                  <form action={async () => {
-                    "use server"
-                    const { prisma } = await import("@/lib/prisma")
-                    const { revalidatePath } = await import("next/cache")
-                    await prisma.invite.update({ where: { id: invite.id }, data: { status: "REJECTED" } })
-                    revalidatePath("/invites")
-                  }}>
-                    <Button variant="ghost" size="sm" type="submit">Recusar</Button>
-                  </form>
-                </div>
-              </div>
+              <CardRoot key={invite.id} borderRadius="card" borderWidth="1px" borderColor="gray.200">
+                <CardBody p={5}>
+                  <VStack gap={3} align="stretch">
+                    <HStack gap={3} align="flex-start">
+                      <Box
+                        w={10} h={10} borderRadius="xl"
+                        bg="green.50"
+                        display="flex" alignItems="center" justifyContent="center"
+                        flexShrink={0}
+                      >
+                        <Text fontSize="lg">👥</Text>
+                      </Box>
+                      <Box flex={1} minW={0}>
+                        <Text fontWeight="semibold" fontSize="md">{invite.group.name}</Text>
+                        {invite.group.description && (
+                          <Text fontSize="sm" color="gray.500" mt={0.5}>{invite.group.description}</Text>
+                        )}
+                        <Text fontSize="xs" color="gray.400" mt={1}>
+                          Convidado por {invite.inviter.name} · {formatDateShort(invite.createdAt)}
+                        </Text>
+                      </Box>
+                    </HStack>
+                    <HStack gap={2}>
+                      <Button colorPalette="green" w="full" size="sm" borderRadius="button" asChild>
+                        <Link href={`/invite/${invite.token}`}>Aceitar</Link>
+                      </Button>
+                      <form action={async () => {
+                        "use server"
+                        const { prisma } = await import("@/lib/prisma")
+                        const { revalidatePath } = await import("next/cache")
+                        await prisma.invite.update({ where: { id: invite.id }, data: { status: "REJECTED" } })
+                        revalidatePath("/invites")
+                      }}>
+                        <Button variant="ghost" size="sm" type="submit" colorPalette="red" borderRadius="button">
+                          Recusar
+                        </Button>
+                      </form>
+                    </HStack>
+                  </VStack>
+                </CardBody>
+              </CardRoot>
             ))}
-          </div>
+          </VStack>
         )}
-      </main>
-    </div>
+      </Box>
+    </Flex>
   )
 }

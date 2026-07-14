@@ -228,6 +228,9 @@ export async function updateExpense(formData: FormData) {
   const amountStr = formData.get("amount") as string
   const expenseDate = formData.get("expenseDate") as string
   const categoryId = formData.get("categoryId") as string
+  const splitType = (formData.get("splitType") as string) || "EQUAL"
+  const paidBy = formData.get("paidBy") as string
+  const participantIds = formData.getAll("participants") as string[]
 
   const expense = await prisma.expense.findUnique({
     where: { id: expenseId },
@@ -247,36 +250,73 @@ export async function updateExpense(formData: FormData) {
   const amountInCents = amountStr ? Math.round(parseFloat(amountStr) * 100) : Number(expense.amount)
   if (!title?.trim() || amountInCents <= 0) return { error: "Título e valor são obrigatórios." }
 
-  const oldAmount = Number(expense.amount)
+  const oldPayerId = expense.paidBy
+  const newPayerId = paidBy || oldPayerId
+  const allParticipantIds = Array.from(new Set([...participantIds, newPayerId]))
 
-  // If amount changed, recalculate splits and update ledger
-  if (oldAmount !== amountInCents) {
-    const oldSplits = expense.participants.map(p => ({
-      userId: p.userId,
-      shareAmount: Number(p.shareAmount),
-    }))
+  const oldSplits = expense.participants.map(p => ({
+    userId: p.userId,
+    shareAmount: Number(p.shareAmount),
+  }))
 
-    // Reverse old ledger entries
-    await updateLedgerOnDelete(groupId, expense.paidBy, oldSplits)
+  // Reverse ALL old ledger entries
+  await updateLedgerOnDelete(groupId, oldPayerId, oldSplits)
 
-    // Calculate new splits (keep same split type and participants)
-    const allParticipantIds = expense.participants.map(p => p.userId)
-    const newSplits = calculateSplits(amountInCents, {
-      type: expense.splitType as any,
-      participants: allParticipantIds.map(id => ({ userId: id })),
-    })
-
-    // Update expense participants
-    for (const s of newSplits) {
-      await prisma.expenseParticipant.updateMany({
-        where: { expenseId, userId: s.userId },
-        data: { shareAmount: s.shareAmount, sharePercentage: s.sharePercentage || null },
-      })
-    }
-
-    // Create new ledger entries
-    await updateLedgerOnCreate(expense.id, groupId, expense.paidBy, newSplits)
+  // Calculate new splits
+  let config: SplitConfig
+  switch (splitType) {
+    case "FIXED":
+      config = {
+        type: "FIXED",
+        participants: allParticipantIds.map(id => ({
+          userId: id,
+          fixedAmount: Math.round(parseFloat((formData.get(`fixed_${id}`) as string) || "0") * 100),
+        })),
+      }
+      break
+    case "PERCENT":
+      config = {
+        type: "PERCENT",
+        participants: allParticipantIds.map(id => ({
+          userId: id,
+          percentage: parseFloat((formData.get(`pct_${id}`) as string) || "0"),
+        })),
+      }
+      break
+    case "SHARES":
+      config = {
+        type: "SHARES",
+        participants: allParticipantIds.map(id => ({
+          userId: id,
+          shares: parseInt((formData.get(`shares_${id}`) as string) || "1"),
+        })),
+      }
+      break
+    default:
+      config = {
+        type: splitType as SplitConfig["type"],
+        participants: allParticipantIds.map(id => ({ userId: id })),
+      }
   }
+
+  const newSplits = calculateSplits(amountInCents, config)
+
+  // Delete old participants and create new ones
+  await prisma.expenseParticipant.deleteMany({ where: { expenseId } })
+  await prisma.expenseParticipant.createMany({
+    data: newSplits.map(s => ({
+      expenseId,
+      userId: s.userId,
+      shareAmount: s.shareAmount,
+      sharePercentage: s.sharePercentage || null,
+      shares: s.shares || 1,
+      weight: s.weight || 1,
+      isPayer: s.userId === newPayerId,
+    })),
+  })
+
+  // Create new ledger entries
+  await updateLedgerOnCreate(expense.id, groupId, newPayerId, newSplits)
 
   // Update expense fields
   await prisma.expense.update({
@@ -284,6 +324,8 @@ export async function updateExpense(formData: FormData) {
     data: {
       title: title.trim(),
       amount: amountInCents,
+      splitType: splitType as any,
+      paidBy: newPayerId,
       expenseDate: expenseDate ? new Date(expenseDate) : undefined,
       categoryId: categoryId || null,
     },
@@ -294,7 +336,14 @@ export async function updateExpense(formData: FormData) {
       groupId,
       userId: user.id,
       action: "EXPENSE_UPDATED",
-      payload: JSON.stringify({ expenseId, title: title.trim(), amount: amountInCents }),
+      payload: JSON.stringify({
+        expenseId,
+        title: title.trim(),
+        amount: amountInCents,
+        splitType,
+        paidBy: newPayerId,
+        participants: allParticipantIds,
+      }),
     },
   })
 

@@ -7,11 +7,11 @@ import { Icon } from "@chakra-ui/react"
 import { HStack, VStack } from "@chakra-ui/react"
 import { NativeSelect } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
-import { ArrowLeft, Plus, Settings, ChevronRight, Receipt, LogOut, X } from "lucide-react"
+import { ArrowLeft, Plus, Settings, ChevronRight, Receipt, LogOut, X, Pencil, Equal, Hash, Percent, Share2, Lightbulb } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
 import { formatCurrencyConverted, convertCurrency } from "@/lib/currency"
-import { createExpenseFromDashboard } from "@/lib/expense-actions"
+import { createExpenseFromDashboard, updateExpense } from "@/lib/expense-actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { DeleteExpenseButton } from "./delete-button"
@@ -83,6 +83,76 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
       toast.error(err.message || "Erro ao criar despesa")
     } finally {
       setExpenseSaving(false)
+    }
+  }
+
+  // Edit modal state
+  const [editingExpense, setEditingExpense] = useState<ExpenseData | null>(null)
+  const [editDesc, setEditDesc] = useState("")
+  const [editAmount, setEditAmount] = useState("")
+  const [editDate, setEditDate] = useState("")
+  const [editCategory, setEditCategory] = useState("")
+  const [editSaving, setEditSaving] = useState(false)
+  const [editSplitType, setEditSplitType] = useState<string>("EQUAL")
+  const [editParticipants, setEditParticipants] = useState<Set<string>>(new Set())
+  const [editPaidBy, setEditPaidBy] = useState("")
+  const [editFixedAmounts, setEditFixedAmounts] = useState<Record<string, string>>({})
+  const [editPercentages, setEditPercentages] = useState<Record<string, number>>({})
+  const [editShares, setEditShares] = useState<Record<string, number>>({})
+
+  function openEditModal(exp: ExpenseData) {
+    setEditingExpense(exp)
+    setEditDesc(exp.title)
+    setEditAmount((exp.amount / 100).toFixed(2).replace(".", ","))
+    setEditDate(exp.expenseDate.split("T")[0])
+    setEditCategory("")
+    setEditPaidBy(exp.paidBy)
+    setEditParticipants(new Set(exp.participants.map(p => p.userId)))
+    setEditSplitType("EQUAL")
+    setEditFixedAmounts({})
+    setEditPercentages({})
+    setEditShares({})
+  }
+
+  async function handleUpdateExpense(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingExpense) return
+    if (!editDesc.trim() || !editAmount) return
+
+    setEditSaving(true)
+    const formData = new FormData()
+    formData.set("expenseId", editingExpense.id)
+    formData.set("groupId", group.id)
+    formData.set("title", editDesc.trim())
+    formData.set("amount", editAmount.replace(",", "."))
+    formData.set("expenseDate", editDate)
+    formData.set("splitType", editSplitType)
+    formData.set("paidBy", editPaidBy)
+    if (editCategory) formData.set("categoryId", editCategory)
+    editParticipants.forEach(id => formData.append("participants", id))
+    if (editSplitType === "FIXED") {
+      editParticipants.forEach(id => formData.append(`fixed_${id}`, editFixedAmounts[id] || "0"))
+    }
+    if (editSplitType === "PERCENT") {
+      editParticipants.forEach(id => formData.append(`pct_${id}`, (editPercentages[id] || 0).toString()))
+    }
+    if (editSplitType === "SHARES") {
+      editParticipants.forEach(id => formData.append(`shares_${id}`, (editShares[id] || 1).toString()))
+    }
+
+    try {
+      const result = await updateExpense(formData)
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        toast.success("Despesa atualizada!")
+        setEditingExpense(null)
+        router.refresh()
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao atualizar despesa")
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -243,6 +313,17 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
                         </Box>
                         <Flex align="center" gap={2} flexShrink={0}>
                           <Text fontSize="sm" fontWeight="semibold">{formatCurrency(Number(expense.amount))}</Text>
+                          <Box
+                            as="button"
+                            onClick={() => openEditModal(expense)}
+                            w={7} h={7} borderRadius="md"
+                            display="flex" alignItems="center" justifyContent="center"
+                            _hover={{ bg: "gray.100" }}
+                            transition="all 0.15s"
+                            title="Editar despesa"
+                          >
+                            <Icon as={Pencil} boxSize={3.5} color="gray.400" />
+                          </Box>
                           <DeleteExpenseButton expenseId={expense.id} groupId={group.id} canDelete={canDelete} />
                         </Flex>
                       </Flex>
@@ -387,6 +468,281 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
               <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={expenseSaving}>
                 Salvar despesa
               </Button>
+            </form>
+          </Dialog.Content>
+        </Dialog.Positioner>
+      </Dialog.Root>
+
+      {/* Edit Expense Modal */}
+      <Dialog.Root open={editingExpense !== null} onOpenChange={(e) => { if (!e.open) setEditingExpense(null) }}>
+        <Dialog.Backdrop bg="blackAlpha.600" />
+        <Dialog.Positioner alignItems="center" px={{ base: 2, md: 0 }}>
+          <Dialog.Content bg="bg.panel" borderRadius="card" maxW={{ base: "100%", md: "480px" }} maxH="85vh" overflowY="auto" onClick={(e) => e.stopPropagation()}>
+            <Flex align="center" justify="space-between" p={6} pb={2}>
+              <Heading size="md" fontWeight="semibold">Editar despesa</Heading>
+              <Dialog.CloseTrigger asChild>
+                <Box w={8} h={8} borderRadius="full" display="flex" alignItems="center" justifyContent="center" cursor="pointer" _hover={{ bg: "gray.100" }}>
+                  <Icon as={X} boxSize={5} color="gray.500" />
+                </Box>
+              </Dialog.CloseTrigger>
+            </Flex>
+
+            <form onSubmit={handleUpdateExpense} style={{ padding: "24px 24px 16px" }}>
+              {/* Grupo (read-only) */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Grupo</Field.Label>
+                <Text fontSize="md" fontWeight="medium" color="gray.700">{group.name}</Text>
+              </Field.Root>
+
+              {/* Descrição */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Descrição</Field.Label>
+                <Input value={editDesc} onChange={e => setEditDesc(e.target.value)}
+                  placeholder="ex: Jantar Japonês" required size="lg" px="5"
+                  bg="white" borderWidth="1px" borderColor="border"
+                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
+              </Field.Root>
+
+              {/* Valor */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Valor</Field.Label>
+                <Input type="text" inputMode="decimal" placeholder="0,00" required
+                  value={editAmount} onChange={e => setEditAmount(e.target.value)}
+                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
+                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
+              </Field.Root>
+
+              {/* Data */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Data</Field.Label>
+                <Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
+                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
+              </Field.Root>
+
+              {/* Categoria */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Categoria</Field.Label>
+                <NativeSelect.Root size="lg">
+                  <NativeSelect.Field ps="5" pe="10" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                    <option value="">Geral</option>
+                    <option value="cat-moradia">Moradia</option>
+                    <option value="cat-alimentação">Alimentação</option>
+                    <option value="cat-transporte">Transporte</option>
+                    <option value="cat-lazer">Lazer</option>
+                    <option value="cat-contas">Contas</option>
+                    <option value="cat-supermercado">Supermercado</option>
+                    <option value="cat-saúde">Saúde</option>
+                    <option value="cat-viagem">Viagem</option>
+                    <option value="cat-tecnologia">Tecnologia</option>
+                    <option value="cat-outros">Outros</option>
+                  </NativeSelect.Field>
+                  <NativeSelect.Indicator />
+                </NativeSelect.Root>
+              </Field.Root>
+
+              {/* Pago por */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Pago por</Field.Label>
+                <NativeSelect.Root size="lg">
+                  <NativeSelect.Field value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.isCurrentUser ? "Você" : m.name.split(" ")[0]}</option>
+                    ))}
+                  </NativeSelect.Field>
+                  <NativeSelect.Indicator />
+                </NativeSelect.Root>
+              </Field.Root>
+
+              {/* Tipo de divisão */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Tipo de divisão</Field.Label>
+                <SimpleGrid columns={4} gap={2}>
+                  {[
+                    { type: "EQUAL", icon: Equal, label: "Igual" },
+                    { type: "FIXED", icon: Hash, label: "Fixo" },
+                    { type: "PERCENT", icon: Percent, label: "%" },
+                    { type: "SHARES", icon: Share2, label: "Partes" },
+                  ].map(({ type, icon, label }) => {
+                    const active = editSplitType === type
+                    return (
+                      <Box key={type} as="button" onClick={() => setEditSplitType(type)}
+                        display="flex" flexDirection="column" alignItems="center" gap={1} p={3}
+                        borderRadius="button" borderWidth="1px" cursor="pointer"
+                        borderColor={active ? "brand.500" : "gray.200"}
+                        bg={active ? "brand.50" : "white"}
+                        color={active ? "brand.600" : "gray.600"}
+                        _hover={!active ? { borderColor: "gray.300" } : {}}
+                        transition="all 0.15s"
+                      >
+                        <Icon as={icon} boxSize={5} />
+                        <Text fontSize="xs" fontWeight="medium">{label}</Text>
+                      </Box>
+                    )
+                  })}
+                </SimpleGrid>
+              </Field.Root>
+
+              {/* Dividir com */}
+              <Field.Root mb={4}>
+                <Field.Label color="fg.muted">Dividir com</Field.Label>
+                <Flex flexWrap="wrap" gap={2}>
+                  {groupMembers.map(m => {
+                    const selected = editParticipants.has(m.id)
+                    return (
+                      <Box
+                        key={m.id}
+                        as="button"
+                        onClick={() => {
+                          const next = new Set(editParticipants)
+                          if (next.has(m.id)) next.delete(m.id)
+                          else next.add(m.id)
+                          setEditParticipants(next)
+                        }}
+                        px={3} py={1.5}
+                        borderRadius="full"
+                        borderWidth="1px"
+                        fontSize="sm"
+                        borderColor={selected ? "brand.500" : "gray.200"}
+                        bg={selected ? "brand.50" : "white"}
+                        color={selected ? "brand.600" : "gray.600"}
+                        fontWeight={selected ? "medium" : "normal"}
+                        cursor="pointer"
+                        _hover={{ borderColor: selected ? "brand.500" : "gray.300" }}
+                        transition="all 0.15s"
+                      >
+                        {m.id === user.id ? "Você" : m.name.split(" ")[0]}
+                      </Box>
+                    )
+                  })}
+                </Flex>
+                <Text fontSize="xs" color="gray.400" mt={1}>
+                  Dividido igualmente entre {editParticipants.size} pessoa{editParticipants.size !== 1 ? "s" : ""}.
+                </Text>
+              </Field.Root>
+
+              {/* Split Preview */}
+              {(() => {
+                const amountNum = parseFloat(editAmount.replace(",", "."))
+                const amountCents = isNaN(amountNum) ? 0 : Math.round(amountNum * 100)
+                if (amountCents <= 0 || editParticipants.size === 0) return null
+                const participantsList = groupMembers.filter(m => editParticipants.has(m.id))
+
+                let preview: { userId: string; amount: number }[] = []
+
+                switch (editSplitType) {
+                  case "EQUAL": {
+                    const count = participantsList.length
+                    const base = Math.floor(amountCents / count)
+                    const rem = amountCents - base * count
+                    preview = participantsList.map((p, i) => ({ userId: p.id, amount: i === count - 1 ? base + rem : base }))
+                    break
+                  }
+                  case "FIXED": {
+                    preview = participantsList.map(p => {
+                      const val = parseFloat((editFixedAmounts[p.id] || "0").replace(",", "."))
+                      return { userId: p.id, amount: isNaN(val) ? 0 : Math.round(val * 100) }
+                    })
+                    break
+                  }
+                  case "PERCENT": {
+                    preview = participantsList.map(p => ({
+                      userId: p.id,
+                      amount: Math.round(amountCents * (editPercentages[p.id] || 0) / 100),
+                    }))
+                    break
+                  }
+                  case "SHARES": {
+                    const totalShares = participantsList.reduce((sum, p) => sum + (editShares[p.id] || 1), 0)
+                    const vps = amountCents / totalShares
+                    let dist = 0
+                    preview = participantsList.map(p => {
+                      const s = Math.floor(vps * (editShares[p.id] || 1))
+                      dist += s
+                      return { userId: p.id, amount: s }
+                    })
+                    let rem = amountCents - dist
+                    for (let i = preview.length - 1; i >= 0 && rem > 0; i--) { preview[i].amount++; rem-- }
+                    break
+                  }
+                }
+
+                const fixedTotal = participantsList.reduce((sum, p) => {
+                  const val = parseFloat((editFixedAmounts[p.id] || "0").replace(",", "."))
+                  return sum + (isNaN(val) ? 0 : Math.round(val * 100))
+                }, 0)
+                const percentTotal = participantsList.reduce((sum, p) => sum + (editPercentages[p.id] || 0), 0)
+
+                return (
+                  <Box p={4} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white" mb={4}>
+                    <Text fontSize="sm" fontWeight="medium" color="gray.600" mb={2}>
+                      <Icon as={Lightbulb} boxSize={4} /> Pré-visualização
+                    </Text>
+                    <Flex direction="column" gap={2}>
+                      {editSplitType === "EQUAL" && preview.map(p => (
+                        <Flex key={p.userId} justify="space-between" fontSize="sm">
+                          <Text>{groupMembers.find(m => m.id === p.userId)?.name?.split(" ")[0] || "Alguém"}</Text>
+                          <Text fontFamily="mono" fontWeight="medium">{formatCurrency(p.amount)}</Text>
+                        </Flex>
+                      ))}
+                      {editSplitType === "FIXED" && participantsList.map(p => (
+                        <Flex key={p.id} align="center" gap={3}>
+                          <Text fontSize="sm" w="80px" truncate>{p.name.split(" ")[0]}</Text>
+                          <Box position="relative" flex={1}>
+                            <Text position="absolute" left={3} top="50%" transform="translateY(-50%)" fontSize="xs" color="gray.400" zIndex={1}>R$</Text>
+                            <Input type="text" inputMode="decimal" placeholder="0,00"
+                              value={editFixedAmounts[p.id] || ""}
+                              onChange={e => setEditFixedAmounts(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              pl={10} pr={3} py={1.5} fontSize="sm" borderRadius="md" bg="gray.50" borderWidth="1px" borderColor="gray.200" fontFamily="mono" _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
+                          </Box>
+                        </Flex>
+                      ))}
+                      {editSplitType === "FIXED" && (
+                        <Text fontSize="xs" pt={2} borderTop="1px" borderColor="gray.100" color={fixedTotal === amountCents ? "green.600" : "red.500"}>
+                          Soma: {formatCurrency(fixedTotal)} / {formatCurrency(amountCents)}
+                          {fixedTotal !== amountCents && ` (${fixedTotal > amountCents ? "sobrando" : "faltando"} ${formatCurrency(Math.abs(fixedTotal - amountCents))})`}
+                        </Text>
+                      )}
+                      {editSplitType === "PERCENT" && participantsList.map(p => (
+                        <Flex key={p.id} align="center" gap={3}>
+                          <Text fontSize="sm" w="80px" truncate>{p.name.split(" ")[0]}</Text>
+                          <Input type="range" min={0} max={100} value={editPercentages[p.id] || 0} flex={1} h="6px" accentColor="brand.500"
+                            onChange={e => setEditPercentages(prev => ({ ...prev, [p.id]: parseInt(e.target.value) }))} />
+                          <Text fontSize="sm" fontFamily="mono" w="48px" textAlign="right">{editPercentages[p.id] || 0}%</Text>
+                        </Flex>
+                      ))}
+                      {editSplitType === "PERCENT" && (
+                        <Text fontSize="xs" pt={2} borderTop="1px" borderColor="gray.100" color={percentTotal === 100 ? "green.600" : "red.500"}>
+                          Total: {percentTotal}% {percentTotal !== 100 && "(deve ser 100%)"}
+                        </Text>
+                      )}
+                      {editSplitType === "SHARES" && participantsList.map(p => (
+                        <Flex key={p.id} align="center" gap={3}>
+                          <Text fontSize="sm" w="80px" truncate>{p.name.split(" ")[0]}</Text>
+                          <Flex align="center" gap={2}>
+                            <Box as="button" onClick={() => setEditShares(prev => ({ ...prev, [p.id]: Math.max(1, (prev[p.id] || 1) - 1) }))}
+                              w={7} h={7} borderRadius="md" borderWidth="1px" borderColor="gray.200" display="flex" alignItems="center" justifyContent="center" fontSize="sm" _hover={{ bg: "gray.50" }}>-</Box>
+                            <Text fontSize="sm" fontFamily="mono" w={6} textAlign="center">{editShares[p.id] || 1}</Text>
+                            <Box as="button" onClick={() => setEditShares(prev => ({ ...prev, [p.id]: (prev[p.id] || 1) + 1 }))}
+                              w={7} h={7} borderRadius="md" borderWidth="1px" borderColor="gray.200" display="flex" alignItems="center" justifyContent="center" fontSize="sm" _hover={{ bg: "gray.50" }}>+</Box>
+                          </Flex>
+                          <Text fontSize="sm" fontFamily="mono" color="gray.500" ml="auto">{formatCurrency(preview.find(s => s.userId === p.id)?.amount || 0)}</Text>
+                        </Flex>
+                      ))}
+                    </Flex>
+                  </Box>
+                )
+              })()}
+
+              {/* Buttons */}
+              <VStack gap={3}>
+                <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={editSaving}>
+                  Salvar alterações
+                </Button>
+                <Button type="button" variant="outline" borderRadius="button" w="full" size="lg" py={3} onClick={() => setEditingExpense(null)}>
+                  Cancelar
+                </Button>
+              </VStack>
             </form>
           </Dialog.Content>
         </Dialog.Positioner>
