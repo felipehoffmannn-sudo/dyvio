@@ -4,9 +4,16 @@ import { redirect } from "next/navigation"
 import { LoginForm } from "./login-form"
 import { Flex, Box, Heading, Text, VStack } from "@chakra-ui/react"
 
-export default async function LoginPage() {
+interface Props {
+  searchParams: { callbackUrl?: string; registered?: string }
+}
+
+export default async function LoginPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions)
-  if (session) redirect("/dashboard")
+  if (session) {
+    const dest = searchParams.callbackUrl || "/dashboard"
+    redirect(dest)
+  }
 
   return (
     <Flex minH="100vh" align="center" justify="center" px={5}>
@@ -19,7 +26,7 @@ export default async function LoginPage() {
             <Heading as="h1" size="2xl" fontWeight="bold" letterSpacing="tight">Dyvio</Heading>
             <Text fontSize="14px" color="gray.500">Entre para gerenciar suas despesas</Text>
           </VStack>
-          <LoginForm />
+          <LoginForm callbackUrl={searchParams.callbackUrl} registered={searchParams.registered === "true"} />
         </VStack>
       </Box>
     </Flex>

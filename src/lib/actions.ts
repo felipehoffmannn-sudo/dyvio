@@ -26,6 +26,7 @@ export async function registerUser(formData: FormData): Promise<void> {
   const name = formData.get("name") as string
   const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const callbackUrl = formData.get("callbackUrl") as string
 
   if (!name || !email || !password) {
     throw new Error("Todos os campos são obrigatórios.")
@@ -50,7 +51,9 @@ export async function registerUser(formData: FormData): Promise<void> {
     },
   })
 
-  redirect("/auth/login?registered=true")
+  const params = new URLSearchParams({ registered: "true" })
+  if (callbackUrl) params.set("callbackUrl", callbackUrl)
+  redirect(`/auth/login?${params.toString()}`)
 }
 
 // ——— GROUP ACTIONS ———

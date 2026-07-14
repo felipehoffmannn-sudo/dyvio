@@ -9,12 +9,13 @@ import {
   Field,
 } from "@chakra-ui/react"
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl, registered }: { callbackUrl?: string; registered?: boolean }) {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const dest = callbackUrl || "/dashboard"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -23,12 +24,17 @@ export function LoginForm() {
     const result = await signIn("credentials", { email, password, redirect: false })
     setLoading(false)
     if (result?.error) { setError("Email ou senha inválidos."); return }
-    router.push("/dashboard")
+    router.push(dest)
     router.refresh()
   }
 
   return (
     <VStack gap={6} w="full">
+      {registered && (
+        <Text fontSize="14px" color="green.600" bg="green.50" px={4} py={3} borderRadius="xl" w="full" textAlign="center">
+          Conta criada com sucesso! Faça login.
+        </Text>
+      )}
       <form onSubmit={handleSubmit} style={{ width: "100%", display: "flex", flexDirection: "column", gap: "16px" }}>
         <Field.Root required>
           <Field.Label color="gray.500" fontSize="13px">Email</Field.Label>
@@ -54,7 +60,7 @@ export function LoginForm() {
           </Text>
         )}
         <Button type="submit" disabled={loading} colorPalette="green" size="lg" w="full" py={3} loading={loading}>
-          {loading ? "Entrando..." : "Entrar"}
+          Entrar
         </Button>
       </form>
 
@@ -65,7 +71,7 @@ export function LoginForm() {
       </Flex>
 
       <Button
-        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+        onClick={() => signIn("google", { callbackUrl: dest })}
         variant="outline" size="lg" w="full" py={3}
       >
         <svg style={{ width: "20px", height: "20px", marginRight: "8px" }} viewBox="0 0 24 24">
@@ -79,10 +85,12 @@ export function LoginForm() {
 
       <Text textAlign="center" fontSize="13px" color="gray.500">
         Não tem conta?{" "}
-        <Link href="/auth/register" style={{ color: "#5CC5A7", fontWeight: 500 }}>
+        <Link href={`/auth/register${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`} style={{ color: "#5CC5A7", fontWeight: 500 }}>
           Cadastre-se
         </Link>
       </Text>
     </VStack>
   )
 }
+
+

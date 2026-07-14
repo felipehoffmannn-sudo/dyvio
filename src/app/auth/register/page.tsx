@@ -2,7 +2,13 @@ import { registerUser } from "@/lib/actions"
 import { Box, Flex, Heading, Text, Input, Button, VStack, Field } from "@chakra-ui/react"
 import Link from "next/link"
 
-export default function RegisterPage() {
+interface Props {
+  searchParams: { callbackUrl?: string }
+}
+
+export default function RegisterPage({ searchParams }: Props) {
+  const callbackUrl = searchParams.callbackUrl || ""
+
   return (
     <Flex minH="100vh" align="center" justify="center" bg="gray.50" px={4}>
       <Box w="full" maxW="400px">
@@ -14,6 +20,7 @@ export default function RegisterPage() {
 
           <form action={registerUser} style={{ width: "100%" }}>
             <VStack gap={4}>
+              {callbackUrl && <input type="hidden" name="callbackUrl" value={callbackUrl} />}
               <Field.Root required>
                 <Field.Label>Nome</Field.Label>
                 <Input name="name" placeholder="Seu nome" autoComplete="name" size="lg" />
@@ -32,7 +39,7 @@ export default function RegisterPage() {
 
           <Text textAlign="center" fontSize="sm" color="fg.muted">
             Já tem conta?{" "}
-            <Link href="/auth/login" style={{ color: "#5cc5a7", fontWeight: 500 }}>
+            <Link href={`/auth/login${callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : ""}`} style={{ color: "#5cc5a7", fontWeight: 500 }}>
               Fazer login
             </Link>
           </Text>
