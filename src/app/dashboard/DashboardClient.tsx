@@ -712,7 +712,7 @@ export default function DashboardClient(props: Props) {
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Pago por</Field.Label>
                 <NativeSelect.Root size="lg">
-                  <NativeSelect.Field value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
+                  <NativeSelect.Field ps="5" pe="10" value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
                     {(() => {
                       const g = groupsWithBalances.find(gr => gr.id === editingExpense?.group.id)
                       return g ? g.members.map(m => (

@@ -528,7 +528,7 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
               <Field.Root mb={4}>
                 <Field.Label color="fg.muted">Pago por</Field.Label>
                 <NativeSelect.Root size="lg">
-                  <NativeSelect.Field value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
+                  <NativeSelect.Field ps="5" pe="10" value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
                     {members.map(m => (
                       <option key={m.id} value={m.id}>{m.isCurrentUser ? "Você" : m.name.split(" ")[0]}</option>
                     ))}
