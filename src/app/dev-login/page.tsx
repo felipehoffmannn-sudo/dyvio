@@ -2,12 +2,22 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Flex, Box, Heading, Text, VStack } from "@chakra-ui/react"
 import Link from "next/link"
-import { householdQuerySuffix, isPasswordlessEntryEnabled, signInPath } from "@/lib/household"
+import { householdQuerySuffix, isHouseholdEntryAuthorized, isPasswordlessEntryEnabled, signInPath } from "@/lib/household"
 
 export const dynamic = "force-dynamic"
 
-export default async function DevLoginPage() {
+export default async function DevLoginPage({ searchParams }: { searchParams: { key?: string } }) {
   if (!isPasswordlessEntryEnabled()) redirect(signInPath())
+  if (!isHouseholdEntryAuthorized(searchParams.key ?? null)) {
+    return (
+      <Flex minH="100vh" align="center" justify="center" px={5} bg="gray.50">
+        <VStack gap={2} maxW="sm" textAlign="center">
+          <Heading size="lg">Link incompleto</Heading>
+          <Text fontSize="sm" color="fg.muted">Peça o link de entrada completo para quem usa o Dyvio com você.</Text>
+        </VStack>
+      </Flex>
+    )
+  }
 
   const users = await prisma.user.findMany({
     select: { id: true, email: true, name: true },
