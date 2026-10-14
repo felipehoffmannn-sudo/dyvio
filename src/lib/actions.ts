@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import bcrypt from "bcryptjs"
+import { householdPartners } from "@/lib/household-members"
 
 // ——— HELPERS ———
 
@@ -67,6 +68,8 @@ export async function createGroup(formData: FormData): Promise<void> {
     throw new Error("Nome do grupo é obrigatório.")
   }
 
+  const partners = await householdPartners(user.id)
+
   const group = await prisma.group.create({
     data: {
       name: name.trim(),
@@ -75,6 +78,7 @@ export async function createGroup(formData: FormData): Promise<void> {
       members: {
         create: [
           { userId: user.id, role: "OWNER" },
+          ...partners.map(p => ({ userId: p.id, role: "MEMBER" })),
         ],
       },
     },

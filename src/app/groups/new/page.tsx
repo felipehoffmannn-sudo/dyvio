@@ -1,12 +1,12 @@
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
-import { createGroup } from "@/lib/actions"
+import { getSessionUser } from "@/lib/data-cache"
+import { householdPartners } from "@/lib/household-members"
 import { NewGroupForm } from "./form"
 
 export default async function NewGroupPage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect("/auth/login")
+  const user = await getSessionUser()
+  if (!user) redirect("/auth/login")
 
-  return <NewGroupForm />
+  const partners = await householdPartners(user.id)
+  return <NewGroupForm partnerNames={partners.map(p => p.name ?? "").filter(Boolean)} />
 }

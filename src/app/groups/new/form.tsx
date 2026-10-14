@@ -4,7 +4,7 @@ import { Box, Flex, Input, Text, Textarea, Button } from "@chakra-ui/react"
 import { createGroup } from "@/lib/actions"
 import { PageHeader } from "@/components/page-header"
 
-export function NewGroupForm() {
+export function NewGroupForm({ partnerNames }: { partnerNames: string[] }) {
   return (
     <Flex minH="100vh" direction="column" bg="bg.page">
       <PageHeader title="Novo grupo" backHref="/dashboard/groups" backLabel="Voltar para grupos" />
@@ -49,6 +49,12 @@ export function NewGroupForm() {
               _focus={{ borderColor: "brand.500", boxShadow: "none" }}
             />
           </Box>
+
+          {partnerNames.length > 0 && (
+            <Text fontSize="sm" color="fg.muted">
+              {partnerNames.join(" e ")} {partnerNames.length > 1 ? "entram" : "entra"} no grupo automaticamente.
+            </Text>
+          )}
 
           <Button type="submit" colorPalette="green" size="lg" w="full">
             Criar grupo

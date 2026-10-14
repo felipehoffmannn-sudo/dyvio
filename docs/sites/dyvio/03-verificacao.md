@@ -63,3 +63,20 @@ Aguardando escolha do usuário sobre quais pacotes aplicar.
 ### Pendências
 - 17. Modo escuro continua sem verificação.
 - A divisão por partes/peso não está no formulário (o banco aceita; nenhuma despesa usa).
+
+## Rodada 6 — uso só do casal (Felipe e Julia) com dados zerados
+
+### Mudanças
+- Criar grupo coloca automaticamente os outros usuários ativos (sem o admin e sem desativados); a tela de novo grupo avisa quem entra.
+- Dados de grupos apagados (local e produção); usuários mantidos.
+
+### Resultado do script
+`verify_site` logado como Julia, 1440px e 390px: **10/10 OK** em `/dashboard`, `/dashboard/groups`, `/groups/[id]`, `/groups/[id]/settings`, `/groups/new`.
+
+### Fluxo de ponta a ponta
+8/8 OK, partindo do banco sem grupos:
+- Felipe cria "Casa": membros são Felipe (dono) e Julia (membro), sem admin.
+- Felipe lança Mercado R$ 100,00 dividido igual: Julia vê "Você deve R$ 50,00 a Felipe" e "A pagar R$ 50,00"; Felipe vê "Julia te deve R$ 50,00" e "A receber R$ 50,00".
+- Julia cria "Viagem": Felipe já entra como membro.
+
+Screenshots: `verificacao/casal/`, `verificacao/rodada-6/`.
