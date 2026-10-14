@@ -11,6 +11,6 @@ import { redirect } from "next/navigation"
 export const getSessionUser = cache(async () => {
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return null
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } })
+  const user = await prisma.user.findFirst({ where: { email: session.user.email, deletedAt: null } })
   return user
 })

@@ -20,6 +20,7 @@ export default async function DevLoginPage({ searchParams }: { searchParams: { k
   }
 
   const users = await prisma.user.findMany({
+    where: { deletedAt: null },
     select: { id: true, email: true, name: true },
     orderBy: { createdAt: "asc" },
   })

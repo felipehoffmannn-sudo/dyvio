@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
   const email = req.nextUrl.searchParams.get("email")
 
   const user = email
-    ? await prisma.user.findUnique({ where: { email } })
-    : await prisma.user.findFirst({ orderBy: { createdAt: "asc" } })
+    ? await prisma.user.findFirst({ where: { email, deletedAt: null } })
+    : await prisma.user.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "asc" } })
 
   if (!user) {
     return NextResponse.json({ error: "Nenhum usuário encontrado no banco." }, { status: 404 })
