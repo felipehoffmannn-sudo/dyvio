@@ -177,7 +177,7 @@ export default function GroupDetailClient({
         title={group.name}
         backHref="/dashboard"
         backLabel="Voltar para o início"
-        actions={isAdmin && (
+        actions={(
           <IconButton asChild aria-label="Configurações do grupo" variant="ghost" size="sm" w={10} h={10} borderRadius="button" color="fg.muted">
             <Link href={`/groups/${group.id}/settings`}>
               <Icon as={Settings} boxSize={5} />

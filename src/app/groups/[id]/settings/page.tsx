@@ -34,7 +34,7 @@ export default async function GroupSettingsPage({
   const isOwner = membership?.role === "OWNER"
   const isAdmin = isOwner || membership?.role === "ADMIN"
 
-  if (!isAdmin) redirect(`/groups/${group.id}`)
+  if (!membership) redirect("/dashboard")
 
   return (
     <Flex minH="100vh" direction="column" bg="bg.page">
@@ -85,9 +85,11 @@ export default async function GroupSettingsPage({
                 </HStack>
               ))}
             </VStack>
-            <Link href={`/groups/${group.id}/invite`}>
-              <Button variant="outline" w="full" mt={3}>+ Convidar mais membros</Button>
-            </Link>
+            {isAdmin && (
+              <Link href={`/groups/${group.id}/invite`}>
+                <Button variant="outline" w="full" mt={3}>+ Convidar mais membros</Button>
+              </Link>
+            )}
           </Box>
 
           <Separator />

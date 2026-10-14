@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { Box, Flex, Heading, Text, Stack } from "@chakra-ui/react"
 import { HStack, VStack } from "@chakra-ui/react"
 import { Button } from "@chakra-ui/react"
@@ -10,6 +10,9 @@ import { Plus, Users, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { formatCurrencyConverted } from "@/lib/currency"
 import { AppHeader } from "@/components/app-header"
+import { ExpenseMenu } from "@/components/expense-menu"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { deleteGroup } from "@/lib/actions"
 
 interface Group {
   id: string; name: string; isArchived: boolean
@@ -29,6 +32,19 @@ const monthNames = [
 
 export default function GroupsClient({ user, groups }: Props) {
   const [selectedCurrency, setSelectedCurrency] = useState("BRL")
+  const [deleting, setDeleting] = useState<Group | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  const confirmDelete = () => {
+    if (!deleting) return
+    const id = deleting.id
+    startTransition(async () => {
+      const result = await deleteGroup(id)
+      if (result?.error) setDeleteError(result.error)
+      setDeleting(null)
+    })
+  }
 
   // Group by month/year
   const grouped = groups.reduce<Record<string, Group[]>>((acc, group) => {
@@ -104,16 +120,18 @@ export default function GroupsClient({ user, groups }: Props) {
                 </Text>
                 <Stack gap={2}>
                   {monthGroups.map((group) => (
-                    <Link key={group.id} href={`/groups/${group.id}`} style={{ textDecoration: "none" }}>
-                      <CardRoot
-                        borderRadius="card"
-                        borderWidth="1px"
-                        borderColor="gray.200"
-                        bg="bg.card"
-                        _hover={{ bg: "gray.50" }}
-                        transition="background 0.15s"
-                      >
-                        <CardBody>
+                    <CardRoot
+                      key={group.id}
+                      borderRadius="card"
+                      borderWidth="1px"
+                      borderColor="gray.200"
+                      bg="bg.card"
+                      _hover={{ bg: "gray.50" }}
+                      transition="background 0.15s"
+                    >
+                      <CardBody>
+                        <Flex align="center" pr={3}>
+                          <Link href={`/groups/${group.id}`} style={{ textDecoration: "none", flex: 1, minWidth: 0 }}>
                           <Box p={4}>
                             <Flex align="center" justify="space-between">
                               <HStack gap={3}>
@@ -155,16 +173,30 @@ export default function GroupsClient({ user, groups }: Props) {
                               </HStack>
                             </Flex>
                           </Box>
-                        </CardBody>
-                      </CardRoot>
-                    </Link>
+                          </Link>
+                          <ExpenseMenu title={group.name} onDelete={() => { setDeleteError(null); setDeleting(group) }} />
+                        </Flex>
+                      </CardBody>
+                    </CardRoot>
                   ))}
                 </Stack>
               </Box>
             ))}
           </Stack>
         )}
+        {deleteError && <Text fontSize="sm" color="red.700" mt={4}>{deleteError}</Text>}
       </Box>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Excluir "${deleting?.name ?? ""}"?`}
+        description="Todas as despesas, pagamentos e saldos deste grupo serão apagados para todos os membros. Não dá para desfazer."
+        confirmLabel="Excluir grupo"
+        destructive
+        loading={pending}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleting(null)}
+      />
     </Flex>
   )
 }

@@ -209,9 +209,9 @@ export async function deleteGroup(groupId: string) {
   const user = await getCurrentUser()
 
   const membership = await prisma.groupMember.findFirst({
-    where: { groupId, userId: user.id, leftAt: null, role: { in: ["OWNER", "ADMIN"] } },
+    where: { groupId, userId: user.id, leftAt: null },
   })
-  if (!membership) return { error: "Apenas o dono ou um admin pode excluir o grupo." }
+  if (!membership) return { error: "Você não é membro deste grupo." }
 
   // Payment.group has no cascade, so it must go before the group
   await prisma.$transaction([
