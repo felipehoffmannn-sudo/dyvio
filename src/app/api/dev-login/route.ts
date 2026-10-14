@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from "next/server"
+import { encode } from "next-auth/jwt"
+import { prisma } from "@/lib/prisma"
+
+/**
+ * DEV ONLY — Login automático sem senha.
+ * Disponível apenas quando NODE_ENV !== "production".
+ * Nunca será acessível no Vercel/produção.
+ *
+ * Uso: http://localhost:3000/api/dev-login?email=admin@leiaute.app
+ * Sem email: entra com o primeiro usuário do banco.
+ */
+export async function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 404 })
+  }
+
+  const email = req.nextUrl.searchParams.get("email")
+
+  const user = email
+    ? await prisma.user.findUnique({ where: { email } })
+    : await prisma.user.findFirst({ orderBy: { createdAt: "asc" } })
+
+  if (!user) {
+    return NextResponse.json({ error: "Nenhum usuário encontrado no banco." }, { status: 404 })
+  }
+
+  const token = await encode({
+    token: {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.image,
+    },
+    secret: process.env.NEXTAUTH_SECRET!,
+  })
+
+  const dest = req.nextUrl.searchParams.get("callbackUrl") || "/dashboard"
+  const res = NextResponse.redirect(new URL(dest, req.nextUrl.origin))
+
+  res.cookies.set("next-auth.session-token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    secure: false,
+    maxAge: 60 * 60 * 24 * 30, // 30 dias
+  })
+
+  return res
+}
