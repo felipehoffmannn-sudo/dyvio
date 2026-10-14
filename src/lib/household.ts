@@ -1,6 +1,6 @@
-/** Uso pessoal / casal — entrada sem senha via /dev-login */
+/** Uso pessoal / casal — entrada sem senha via /dev-login. Ligado por padrão; DYVIO_HOUSEHOLD="false" volta ao login com senha. */
 export function isHouseholdMode(): boolean {
-  return process.env.DYVIO_HOUSEHOLD === "true"
+  return process.env.DYVIO_HOUSEHOLD !== "false"
 }
 
 export function isPasswordlessEntryEnabled(): boolean {
