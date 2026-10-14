@@ -4,6 +4,7 @@ import { formatDateShort } from "@/lib/utils"
 import Link from "next/link"
 import { Flex, Box, Heading, Text, VStack, HStack, Button, CardRoot, CardBody } from "@chakra-ui/react"
 import { getSessionUser } from "@/lib/data-cache"
+import { PageHeader } from "@/components/page-header"
 
 export default async function InvitesPage() {
   const user = await getSessionUser()
@@ -19,22 +20,8 @@ export default async function InvitesPage() {
   })
 
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      {/* Header */}
-      <Flex
-        bg="white"
-        px={{ base: 4, md: 6 }}
-        py={3}
-        borderBottom="1px"
-        borderColor="gray.200"
-        align="center"
-        gap={3}
-      >
-        <Link href="/dashboard" style={{ color: "inherit", textDecoration: "none", flexShrink: 0 }}>
-          <Text as="span" color="gray.500" fontSize="lg">←</Text>
-        </Link>
-        <Heading as="h1" size="lg">Convites</Heading>
-      </Flex>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader title="Convites" backHref="/dashboard" backLabel="Voltar para o início" />
 
       <Box flex={1} maxW="520px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
         {invites.length === 0 ? (
@@ -95,7 +82,7 @@ export default async function InvitesPage() {
                         {invite.group.description && (
                           <Text fontSize="sm" color="gray.500" mt={0.5}>{invite.group.description}</Text>
                         )}
-                        <Text fontSize="xs" color="gray.400" mt={1}>
+                        <Text fontSize="xs" color="fg.subtle" mt={1}>
                           Convidado por {invite.inviter.name} · {formatDateShort(invite.createdAt)}
                         </Text>
                       </Box>

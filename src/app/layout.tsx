@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
+import { Onest } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "sonner"
+
+const onest = Onest({ subsets: ["latin", "latin-ext"], display: "swap", variable: "--font-sans" })
 
 export const metadata: Metadata = {
   title: "Dyvio — Gestão de Despesas Compartilhadas",
@@ -14,8 +17,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
-      <body style={{ fontFamily: "'Stack Sans Text', 'Roboto', 'Helvetica Neue', 'Arial', sans-serif" }}>
+    <html lang="pt-BR" className={onest.variable} suppressHydrationWarning>
+      <body>
         <Providers>
           {children}
           <Toaster

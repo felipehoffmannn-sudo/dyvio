@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { Box, Flex, Heading, Text, Button, VStack, HStack, Separator, Avatar, Badge } from "@chakra-ui/react"
 import Link from "next/link"
 import { removeMember, archiveGroup, deleteGroup } from "@/lib/actions"
+import { PageHeader } from "@/components/page-header"
 
 export default async function GroupSettingsPage({
   params,
@@ -35,13 +36,8 @@ export default async function GroupSettingsPage({
   if (!isAdmin) redirect(`/groups/${group.id}`)
 
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      <Flex bg="white" px={6} py={3} borderBottom="1px" borderColor="gray.200" align="center" gap={4}>
-        <Link href={`/groups/${group.id}`} style={{ color: "inherit", textDecoration: "none" }}>
-          <Text color="gray.500" _hover={{ color: "gray.700" }}>←</Text>
-        </Link>
-        <Heading as="h1" size="lg">Configurações</Heading>
-      </Flex>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader title="Configurações do grupo" backHref={`/groups/${group.id}`} backLabel={`Voltar para ${group.name}`} />
 
       <Box flex={1} maxW="520px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
         <VStack gap={8} align="stretch">
@@ -64,7 +60,7 @@ export default async function GroupSettingsPage({
                 <HStack key={m.id} justify="space-between" px={4} py={3} borderRadius="lg" bg="white" borderWidth="1px" borderColor="gray.200">
                   <HStack gap={3}>
                     <Avatar.Root size="sm">
-                      <Avatar.Fallback bg="brand.100" color="brand.600" fontWeight="medium">
+                      <Avatar.Fallback bg="gray.900" color="white" fontWeight="semibold">
                         {m.user.name?.[0]?.toUpperCase()}
                       </Avatar.Fallback>
                     </Avatar.Root>
@@ -97,7 +93,7 @@ export default async function GroupSettingsPage({
 
           {/* Danger zone */}
           <Box>
-            <Text fontSize="sm" fontWeight="medium" color="red.500" mb={3}>Zona de perigo</Text>
+            <Text fontSize="sm" fontWeight="medium" color="red.700" mb={3}>Zona de perigo</Text>
             <VStack gap={3} align="stretch">
               {isOwner && (
                 <form action={async () => {

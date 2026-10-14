@@ -66,7 +66,7 @@ export function LoginForm({ callbackUrl, registered }: { callbackUrl?: string; r
 
       <Flex align="center" gap={3} w="full">
         <Separator flex={1} />
-        <Text fontSize="xs" color="gray.400">ou</Text>
+        <Text fontSize="xs" color="fg.subtle">ou</Text>
         <Separator flex={1} />
       </Flex>
 

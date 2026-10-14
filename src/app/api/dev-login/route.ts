@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { encode } from "next-auth/jwt"
 import { prisma } from "@/lib/prisma"
+import { isHouseholdEntryAuthorized, isPasswordlessEntryEnabled } from "@/lib/household"
 
 /**
- * DEV ONLY — Login automático sem senha.
- * Disponível apenas quando NODE_ENV !== "production".
- * Nunca será acessível no Vercel/produção.
+ * Entrada sem senha (dev ou DYVIO_HOUSEHOLD=true).
  *
- * Uso: http://localhost:3000/api/dev-login?email=admin@leiaute.app
+ * Uso: /api/dev-login?email=felipe@casa.local
  * Sem email: entra com o primeiro usuário do banco.
  */
 export async function GET(req: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available in production" }, { status: 404 })
+  if (!isPasswordlessEntryEnabled()) {
+    return NextResponse.json({ error: "Not available" }, { status: 404 })
+  }
+
+  const key = req.nextUrl.searchParams.get("key")
+  if (!isHouseholdEntryAuthorized(key)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const email = req.nextUrl.searchParams.get("email")

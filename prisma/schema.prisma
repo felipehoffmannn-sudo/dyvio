@@ -130,8 +130,9 @@ model Expense {
   groupId      String
   title        String
   description  String?
-  amount       Float
+  amount       Float     // BRL cents; the ledger is always in BRL
   currency     String    @default("BRL")
+  originalAmount Float?  // cents in `currency`, as the user typed it
   splitType    String
   categoryId   String?
   status       String    @default("ACTIVE")

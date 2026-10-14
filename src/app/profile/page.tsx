@@ -8,6 +8,7 @@ import { AvatarRoot, AvatarFallback } from "@chakra-ui/react"
 import Link from "next/link"
 import { LogoutButton } from "./logout-button"
 import { ProfileActions } from "./profile-actions"
+import { PageHeader } from "@/components/page-header"
 
 export default async function ProfilePage() {
   const session = await getServerSession(authOptions)
@@ -26,13 +27,8 @@ export default async function ProfilePage() {
   })
 
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      <Flex bg="white" px={6} py={3} borderBottom="1px" borderColor="gray.200" align="center" gap={4}>
-        <Link href="/dashboard" style={{ color: "inherit", textDecoration: "none" }}>
-          <Text color="gray.500" _hover={{ color: "gray.700" }}>←</Text>
-        </Link>
-        <Heading as="h1" size="lg">Perfil</Heading>
-      </Flex>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader title="Perfil" backHref="/dashboard" backLabel="Voltar para o início" />
 
       <Box flex={1} maxW="520px" mx="auto" w="full" p={{ base: 4, md: 8 }}>
         <VStack gap={8} align="stretch">
@@ -55,7 +51,7 @@ export default async function ProfilePage() {
             </AvatarRoot>
             <Box>
               <Heading size="xl" fontWeight="semibold">{user.name}</Heading>
-              <Text color="fg.muted" fontSize="sm">{user.email}</Text>
+              <Text fontSize="sm" color="fg.muted">{user.email}</Text>
             </Box>
           </VStack>
 

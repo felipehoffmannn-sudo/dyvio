@@ -1,16 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Box, Flex, Heading, Text, Stack, Separator } from "@chakra-ui/react"
+import { Box, Flex, Heading, Text, Stack } from "@chakra-ui/react"
 import { HStack, VStack } from "@chakra-ui/react"
 import { Button } from "@chakra-ui/react"
-import { CardRoot, CardHeader, CardBody, CardTitle } from "@chakra-ui/react"
-import { AvatarRoot, AvatarFallback } from "@chakra-ui/react"
-import { NativeSelect } from "@chakra-ui/react"
+import { CardRoot, CardBody } from "@chakra-ui/react"
 import { Icon } from "@chakra-ui/react"
-import { Plus, Users, ChevronRight, LayoutDashboard, ArrowUpRight, ArrowDownRight } from "lucide-react"
+import { Plus, Users, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { formatCurrencyConverted } from "@/lib/currency"
+import { AppHeader } from "@/components/app-header"
 
 interface Group {
   id: string; name: string; isArchived: boolean
@@ -30,12 +29,6 @@ const monthNames = [
 
 export default function GroupsClient({ user, groups }: Props) {
   const [selectedCurrency, setSelectedCurrency] = useState("BRL")
-  const userInitials = user.name
-    .split(" ")
-    .map(n => n.charAt(0))
-    .slice(0, 2)
-    .join("")
-    .toUpperCase()
 
   // Group by month/year
   const grouped = groups.reduce<Record<string, Group[]>>((acc, group) => {
@@ -50,57 +43,15 @@ export default function GroupsClient({ user, groups }: Props) {
 
   return (
     <Flex minH="100vh" direction="column" bg="gray.50">
-      {/* === TOP BAR === */}
-      <Flex
-        bg="white" px={{ base: 3, md: 6 }} py={3} borderBottom="1px" borderColor="border.card"
-        align="center" justify="space-between" gap={{ base: 1, md: 0 }}
-      >
-        <HStack gap={2}>
-          <Box w={{ base: 7, md: 8 }} h={{ base: 7, md: 8 }} bg="brand.500" borderRadius="lg" />
-          <Heading size={{ base: "sm", md: "md" }} color="brand.600">Dyvio</Heading>
-        </HStack>
-
-        <HStack gap={{ base: 0.5, md: 1 }}>
-          <Button variant="ghost" size="sm" fontWeight="medium" color="gray.600" px={{ base: 2, md: 3 }} py={1.5} borderRadius="button" asChild>
-            <Link href="/dashboard">
-              <Icon as={LayoutDashboard} boxSize={4} />
-              <Box as="span" display={{ base: "none", md: "inline" }} ml={1}>Dashboard</Box>
-            </Link>
-          </Button>
-          <Button variant="ghost" size="sm" fontWeight={{ base: "normal", md: "semibold" }} color="brand.600" bg={{ base: "transparent", md: "brand.50" }} px={{ base: 2, md: 3 }} py={1.5} borderRadius="button" asChild>
-            <Link href="/dashboard/groups">
-              <Icon as={Users} boxSize={4} />
-              <Box as="span" display={{ base: "none", md: "inline" }} ml={1}>Grupos</Box>
-            </Link>
-          </Button>
-        </HStack>
-
-        <HStack gap={{ base: 1, md: 3 }}>
-          <NativeSelect.Root size="xs" w={{ base: "80px", md: "130px" }}>
-            <NativeSelect.Field ps={{ base: 2, md: 3 }} pe={{ base: 5, md: 7 }} value={selectedCurrency} onChange={e => setSelectedCurrency(e.target.value)}>
-              <option value="BRL">BRL (R$)</option>
-              <option value="USD">USD ($)</option>
-              <option value="EUR">EUR (€)</option>
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
-          <Link href="/profile" style={{ color: "inherit", textDecoration: "none", display: "flex" }}>
-            <AvatarRoot size={{ base: "xs", md: "sm" }} cursor="pointer" overflow="hidden" borderRadius="full">
-              <AvatarFallback bg="brand.500" color="white" fontWeight="bold" w="full" h="full" display="flex" alignItems="center" justifyContent="center">
-                {userInitials}
-              </AvatarFallback>
-            </AvatarRoot>
-          </Link>
-        </HStack>
-      </Flex>
+      <AppHeader active="groups" userName={user.name} currency={selectedCurrency} onCurrencyChange={setSelectedCurrency} />
 
       {/* === MAIN CONTENT === */}
-      <Box flex={1} maxW="800px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
+      <Box flex={1} maxW="800px" mx="auto" w="full" px={{ base: 4, md: 6 }} py={{ base: 6, md: 10 }}>
         {/* Header */}
-        <Flex justify="space-between" align="center" mb={6}>
+        <Flex justify="space-between" align="center" mb={8}>
           <Box>
-            <Heading size="xl" fontWeight="semibold">Grupos</Heading>
-            <Text color="gray.500" mt={1} fontSize="md">
+            <Heading as="h1" size="2xl" fontWeight="semibold" letterSpacing="tight">Grupos</Heading>
+            <Text fontSize="sm" color="fg.muted" mt={1}>
               {groups.length} grupo{groups.length !== 1 ? "s" : ""}
             </Text>
           </Box>
@@ -122,7 +73,7 @@ export default function GroupsClient({ user, groups }: Props) {
                   </Box>
                   <Box>
                     <Text fontWeight="semibold" fontSize="lg">Nenhum grupo</Text>
-                    <Text color="gray.400" fontSize="sm" mt={1}>
+                    <Text fontSize="sm" color="fg.subtle" mt={1}>
                       Crie ou entre em um grupo para começar
                     </Text>
                   </Box>
@@ -146,7 +97,7 @@ export default function GroupsClient({ user, groups }: Props) {
             {groupEntries.map(([monthLabel, monthGroups]) => (
               <Box key={monthLabel}>
                 <Text
-                  fontSize="sm" fontWeight="semibold" color="gray.400"
+                  fontSize="sm" fontWeight="semibold" color="fg.subtle"
                   textTransform="uppercase" letterSpacing="wider" mb={3}
                 >
                   {monthLabel}
@@ -166,33 +117,33 @@ export default function GroupsClient({ user, groups }: Props) {
                           <Box p={4}>
                             <Flex align="center" justify="space-between">
                               <HStack gap={3}>
-                                <Box w={10} h={10} borderRadius="lg" bg="brand.100" display="flex" alignItems="center" justifyContent="center">
-                                  <Icon as={Users} boxSize={5} color="brand.600" />
+                                <Box w={10} h={10} borderRadius="lg" bg="gray.100" display="flex" alignItems="center" justifyContent="center">
+                                  <Icon as={Users} boxSize={4} color="fg.muted" />
                                 </Box>
                                 <Box>
                                   <HStack gap={2}>
                                     <Text fontWeight="medium">{group.name}</Text>
                                     {group.role === "OWNER" && (
-                                      <Text fontSize="10px" px={1.5} py={0.5} borderRadius="full" bg="brand.50" color="brand.600" fontWeight="medium">
+                                      <Text fontSize="xs" px={1.5} borderRadius="full" borderWidth="1px" borderColor="border.card" color="fg.muted">
                                         admin
                                       </Text>
                                     )}
                                     {group.isArchived && (
-                                      <Text fontSize="10px" px={1.5} py={0.5} borderRadius="full" bg="gray.100" color="gray.500">
+                                      <Text fontSize="xs" px={1.5} borderRadius="full" bg="gray.100" color="fg.muted">
                                         arquivado
                                       </Text>
                                     )}
                                   </HStack>
-                                  <Text fontSize="xs" color="gray.400">
+                                  <Text fontSize="xs" color="fg.subtle">
                                     {group.memberCount} membro{group.memberCount !== 1 ? "s" : ""}
                                   </Text>
                                 </Box>
                               </HStack>
                               <HStack gap={2}>
-                                <Text fontWeight="semibold" fontSize="sm" color={
-                                  group.balance > 0 ? "green.600"
-                                    : group.balance < 0 ? "red.500"
-                                    : "gray.400"
+                                <Text fontWeight="medium" fontSize="sm" color={
+                                  group.balance > 0 ? "positive"
+                                    : group.balance < 0 ? "negative"
+                                    : "fg.subtle"
                                 }>
                                   {group.balance > 0
                                     ? `+${formatCurrencyConverted(Math.round(group.balance), selectedCurrency)}`

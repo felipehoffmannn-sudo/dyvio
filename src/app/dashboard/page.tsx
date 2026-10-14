@@ -31,6 +31,11 @@ export default async function DashboardPage() {
         totalOwed={0}
         totalGroupExpense={0}
         recentExpenses={[]}
+        debts={{}}
+        owedToMe={{}}
+        pendingOut={[]}
+        pendingIn={{}}
+        categories={[]}
         monthlyTotal={0}
         dailyMap={{}}
         daysInMonth={new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}
@@ -53,6 +58,9 @@ export default async function DashboardPage() {
     recentExpenses,
     monthlyExpenses,
     dailyTotals,
+    myDebts,
+    pendingPayments,
+    categories,
   ] = await Promise.all([
     // Membros dos grupos
     prisma.groupMember.findMany({
@@ -73,6 +81,7 @@ export default async function DashboardPage() {
         group: { select: { name: true } },
         payer: { select: { name: true } },
         category: { select: { id: true, name: true, icon: true } },
+        participants: { select: { userId: true, shareAmount: true, sharePercentage: true, user: { select: { name: true } } } },
       },
     }),
     // Total do mês
@@ -86,7 +95,34 @@ export default async function DashboardPage() {
       where: { groupId: { in: groupIds }, status: "ACTIVE", deletedAt: null, expenseDate: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
+    // Positive balance on (userId → counterpartyId) means userId owes counterpartyId
+    prisma.ledgerEntry.findMany({
+      where: {
+        groupId: { in: groupIds },
+        balance: { gt: 0 },
+        OR: [{ userId: user.id }, { counterpartyId: user.id }],
+      },
+      select: { groupId: true, userId: true, counterpartyId: true, balance: true },
+    }),
+    prisma.payment.findMany({
+      where: { groupId: { in: groupIds }, status: "PENDING", OR: [{ fromUserId: user.id }, { toUserId: user.id }] },
+      select: { groupId: true, fromUserId: true, toUserId: true, amount: true },
+    }),
+    prisma.category.findMany({ where: { parentId: null }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ])
+
+  const debts: Record<string, number> = {}
+  const owedToMe: Record<string, number> = {}
+  myDebts.forEach(d => {
+    if (d.userId === user.id) debts[`${d.groupId}:${d.counterpartyId}`] = Math.round(d.balance)
+    else owedToMe[`${d.groupId}:${d.userId}`] = Math.round(d.balance)
+  })
+  const pendingOut: string[] = []
+  const pendingIn: Record<string, number> = {}
+  pendingPayments.forEach(p => {
+    if (p.fromUserId === user.id) pendingOut.push(`${p.groupId}:${p.toUserId}`)
+    else pendingIn[`${p.groupId}:${p.fromUserId}`] = Math.round(p.amount)
+  })
 
   // 3. Montar mapas de membros
   const groupMemberMap: Record<string, string[]> = {}
@@ -106,6 +142,7 @@ export default async function DashboardPage() {
         id: m.group.id,
         name: m.group.name,
         balance: Math.round(balance * 100) / 100,
+        isAdmin: m.role === "OWNER" || m.role === "ADMIN",
         memberIds: groupMemberMap[m.group.id] || [],
         members: groupMemberNames[m.group.id] || [],
       }
@@ -121,11 +158,20 @@ export default async function DashboardPage() {
     id: e.id,
     description: e.title,
     amount: Number(e.amount),
+    originalAmount: Number(e.originalAmount ?? e.amount),
     expenseDate: e.expenseDate.toISOString(),
     currency: e.currency,
+    splitType: e.splitType,
+    createdAt: e.createdAt.toISOString(),
     group: { id: e.groupId, name: e.group.name },
     payer: { id: e.paidBy, name: e.payer.name },
     category: e.category ? { id: e.category.id, name: e.category.name, icon: e.category.icon } : null,
+    participants: e.participants.map(p => ({
+      userId: p.userId,
+      name: p.user.name ?? "",
+      share: Math.round(Number(p.shareAmount)),
+      percentage: p.sharePercentage != null ? Number(p.sharePercentage) : null,
+    })),
   }))
 
   const daysInMonth = endOfMonth.getDate()
@@ -142,6 +188,11 @@ export default async function DashboardPage() {
       totalOwed={totalOwed}
       totalGroupExpense={totalGroupExpense}
       recentExpenses={JSON.parse(JSON.stringify(mappedExpenses))}
+      debts={debts}
+      owedToMe={owedToMe}
+      pendingOut={pendingOut}
+      pendingIn={pendingIn}
+      categories={categories}
       monthlyTotal={monthlyExpenses._sum.amount || 0}
       dailyMap={dailyMap}
       daysInMonth={daysInMonth}

@@ -7,6 +7,7 @@ import { CardRoot, CardBody } from "@chakra-ui/react"
 import { inviteMember, deleteInvite } from "@/lib/actions"
 import Link from "next/link"
 import { InviteIcon } from "./invite-icon"
+import { PageHeader } from "@/components/page-header"
 
 export default async function InviteMemberPage({
   params,
@@ -36,13 +37,8 @@ export default async function InviteMemberPage({
   if (!isAdmin) redirect(`/groups/${group.id}`)
 
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      <Flex bg="white" px={{ base: 4, md: 6 }} py={3} borderBottom="1px" borderColor="gray.200" align="center" gap={4}>
-        <Link href={`/groups/${group.id}`} style={{ color: "inherit", textDecoration: "none" }}>
-          <Text color="gray.500" _hover={{ color: "gray.700" }}>←</Text>
-        </Link>
-        <Heading as="h1" size="lg">Convidar membros</Heading>
-      </Flex>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader title="Convidar membros" backHref={`/groups/${group.id}`} backLabel={`Voltar para ${group.name}`} />
 
       <Box flex={1} maxW="520px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
         <VStack gap={6} align="stretch">
@@ -96,7 +92,7 @@ export default async function InviteMemberPage({
                       <HStack gap={3} px={4} py={3}>
                         <Box
                           w={8} h={8} borderRadius="full"
-                          bg="brand.100" color="brand.600"
+                          bg="gray.900" color="white"
                           display="flex" alignItems="center" justifyContent="center"
                           fontSize="sm" fontWeight="bold" flexShrink={0}
                         >

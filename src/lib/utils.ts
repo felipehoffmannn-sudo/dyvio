@@ -51,6 +51,20 @@ export function formatRelativeTime(date: Date | string): string {
   return formatDateShort(date)
 }
 
+/** "YYYY-MM-DD" for a date input, in local time (toISOString would use UTC and can jump a day). */
+export function toDateInputValue(date: Date | string = new Date()): string {
+  const d = new Date(date)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Parses "YYYY-MM-DD" as local noon, so the stored day survives timezone conversions. */
+export function parseDateInput(value: string | null | undefined): Date {
+  const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return new Date()
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+}
+
 export function toCents(amount: number): number {
   return Math.round(amount * 100)
 }

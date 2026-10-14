@@ -21,12 +21,55 @@ const defaultCategories = [
   { name: "Outros", icon: "➕", color: "#78716C", isSystem: true },
 ]
 
+const householdUsers = [
+  { email: "felipe@casa.local", name: "Felipe" },
+  { email: "julia@casa.local", name: "Julia" },
+]
+
 async function main() {
   console.log("🌱 Seeding database...")
 
-  // Create admin user
+  const users = []
+  for (const u of householdUsers) {
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name },
+      create: {
+        email: u.email,
+        name: u.name,
+        emailVerified: new Date(),
+      },
+    })
+    users.push(user)
+    console.log(`✅ Usuário: ${user.name} (${user.email})`)
+  }
+
+  const casa = await prisma.group.upsert({
+    where: { id: "group-casa" },
+    update: { name: "Casa" },
+    create: {
+      id: "group-casa",
+      name: "Casa",
+      description: "Despesas do casal",
+      createdBy: users[0].id,
+    },
+  })
+
+  for (const user of users) {
+    await prisma.groupMember.upsert({
+      where: { groupId_userId: { groupId: casa.id, userId: user.id } },
+      update: {},
+      create: {
+        groupId: casa.id,
+        userId: user.id,
+        role: user.id === users[0].id ? "ADMIN" : "MEMBER",
+      },
+    })
+  }
+  console.log(`✅ Grupo "${casa.name}" com ${users.length} membros`)
+
   const passwordHash = await bcrypt.hash("admin", 12)
-  const admin = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: "admin@leiaute.app" },
     update: {},
     create: {
@@ -36,7 +79,6 @@ async function main() {
       emailVerified: new Date(),
     },
   })
-  console.log(`✅ Admin user created: ${admin.email} (senha: admin)`)
 
   for (const cat of defaultCategories) {
     await prisma.category.upsert({
@@ -52,9 +94,8 @@ async function main() {
   console.log("✅ Default categories created")
   console.log("🌱 Seed complete!")
   console.log("")
-  console.log("🔑 Login credentials:")
-  console.log("   Email: admin@leiaute.app")
-  console.log("   Senha: admin")
+  console.log("👆 Entrada sem senha: http://localhost:3000/dev-login")
+  console.log("   (ou abra / — redireciona para escolher Felipe ou Julia)")
 }
 
 main()

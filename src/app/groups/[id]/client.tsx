@@ -1,217 +1,240 @@
 "use client"
 
 import { useState } from "react"
-import { Box, Flex, Heading, Text, Stack, Separator, SimpleGrid, Input, Field } from "@chakra-ui/react"
-import { Button } from "@chakra-ui/react"
+import { Box, Flex, Heading, Text, Stack, Separator, Grid } from "@chakra-ui/react"
+import { Button, IconButton } from "@chakra-ui/react"
 import { Icon } from "@chakra-ui/react"
 import { HStack, VStack } from "@chakra-ui/react"
-import { NativeSelect } from "@chakra-ui/react"
 import { Dialog } from "@chakra-ui/react"
-import { ArrowLeft, Plus, Settings, ChevronRight, Receipt, LogOut, X, Pencil, Lightbulb } from "lucide-react"
+import { CheckCircle2, Plus, Receipt, Settings } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency, formatDateShort } from "@/lib/utils"
-import { formatCurrencyConverted, convertCurrency } from "@/lib/currency"
-import { createExpenseFromDashboard, updateExpense } from "@/lib/expense-actions"
+import { getCategoryIcon } from "@/lib/category-icons"
+import { deleteExpense, registerPayment, markPaymentReceived, confirmPayment, rejectPayment } from "@/lib/expense-actions"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { DeleteExpenseButton } from "./delete-button"
+import { PageHeader } from "@/components/page-header"
+import { ExpenseMenu } from "@/components/expense-menu"
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { ExpenseFormDialog, type ExpenseFormCategory, type ExpenseFormValues } from "@/components/expense-form-dialog"
 
 interface GroupData { id: string; name: string }
 interface UserData { id: string; name: string; balance: number }
 interface MemberData { id: string; name: string; initials: string; role: string; isCurrentUser: boolean }
 interface ExpenseData {
-  id: string; title: string; amount: number; expenseDate: string; createdAt: string; paidBy: string
-  payer: { id: string; name: string; image: string | null }
-  participants: { userId: string; shareAmount: number; user: { id: string; name: string } }[]
-  category: { name: string; icon: string } | null
+  id: string; title: string; amount: number; originalAmount: number; currency: string; splitType: string
+  expenseDate: string; createdAt: string; paidBy: string; payerName: string
+  category: { id: string; name: string } | null
+  participants: { userId: string; share: number; percentage: number | null }[]
 }
 interface Settlement { fromUserId: string; toUserId: string; amount: number }
+interface PaymentData {
+  id: string; fromUserId: string; toUserId: string; amount: number
+  status: string; createdAt: string; updatedAt: string
+}
 
 interface Props {
   group: GroupData; user: UserData; members: MemberData[]; isAdmin: boolean
-  expenses: ExpenseData[]; userSettlements: Settlement[]
+  categories: ExpenseFormCategory[]
+  expenses: ExpenseData[]; settlements: Settlement[]; payments: PaymentData[]
+  /** My ledger balance with each counterparty, in cents: > 0 I owe them, < 0 they owe me. */
+  pairBalances: Record<string, number>
 }
 
-export default function GroupDetailClient({ group, user, members, isAdmin, expenses, userSettlements }: Props) {
+const PAYMENT_STATUS: Record<string, { label: string; color: string }> = {
+  PENDING: { label: "Aguardando confirmação", color: "fg.muted" },
+  CONFIRMED: { label: "Confirmado", color: "positive" },
+  REJECTED: { label: "Não recebido", color: "negative" },
+}
+
+/** "pay": I owe and mark it (receiver confirms). "receive": I'm owed and confirm it myself. */
+interface PaymentIntent extends Settlement { mode: "pay" | "receive" }
+
+export default function GroupDetailClient({
+  group, user, members, isAdmin, categories, expenses, settlements, payments, pairBalances,
+}: Props) {
   const router = useRouter()
 
-  // Quick expense modal state
-  const [showExpenseModal, setShowExpenseModal] = useState(false)
-  const [expenseDesc, setExpenseDesc] = useState("")
-  const [expenseAmount, setExpenseAmount] = useState("")
-  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split("T")[0])
-  const [expenseCategory, setExpenseCategory] = useState("")
-  const [expenseCurrency, setExpenseCurrency] = useState("BRL")
-  const [expenseSaving, setExpenseSaving] = useState(false)
-  const [expenseParticipants, setExpenseParticipants] = useState<Set<string>>(
-    new Set(members.map(m => m.id))
+  const firstName = (id: string) => {
+    const m = members.find(m => m.id === id)
+    return m?.isCurrentUser ? "Você" : m?.name.split(" ")[0] || "Alguém"
+  }
+  const involvesMe = (p: { fromUserId: string; toUserId: string }) => p.fromUserId === user.id || p.toUserId === user.id
+  const mySettlements = settlements.filter(involvesMe)
+  const otherSettlements = settlements.filter(s => !involvesMe(s))
+  const myPendingPayments = payments.filter(p => p.status === "PENDING" && involvesMe(p))
+  const pendingFor = (fromUserId: string, toUserId: string) =>
+    myPendingPayments.find(p => p.fromUserId === fromUserId && p.toUserId === toUserId)
+  const pendingWithoutSettlement = myPendingPayments.filter(
+    p => !mySettlements.some(s => s.fromUserId === p.fromUserId && s.toUserId === p.toUserId)
   )
+  const settlementRows: { fromUserId: string; toUserId: string; amount: number; pending?: PaymentData }[] = [
+    ...mySettlements.map(s => ({ ...s, pending: pendingFor(s.fromUserId, s.toUserId) })),
+    ...pendingWithoutSettlement.map(p => ({ fromUserId: p.fromUserId, toUserId: p.toUserId, amount: p.amount, pending: p })),
+  ]
 
-  const groupMembers = members.map(m => ({ id: m.id, name: m.name }))
+  const formGroups = [{ id: group.id, name: group.name, members: members.map(m => ({ id: m.id, name: m.name })) }]
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<ExpenseFormValues | null>(null)
+  const [deleting, setDeleting] = useState<ExpenseData | null>(null)
+  const [deleteSaving, setDeleteSaving] = useState(false)
+  const [paying, setPaying] = useState<PaymentIntent | null>(null)
+  const [paymentSaving, setPaymentSaving] = useState(false)
+  const [resolvingPaymentId, setResolvingPaymentId] = useState<string | null>(null)
 
-  async function handleQuickExpense(e: React.FormEvent) {
-    e.preventDefault()
-    if (!expenseDesc.trim() || !expenseAmount || !group.id) return
-    const amountInCents = Math.round(parseFloat(expenseAmount.replace(",", ".")) * 100)
-    const brlAmount = expenseCurrency === "BRL" ? amountInCents : convertCurrency(amountInCents, expenseCurrency, "BRL")
-    if (amountInCents <= 0) return
+  function openCreate() {
+    setEditing(null)
+    setFormOpen(true)
+  }
 
-    setExpenseSaving(true)
-    const formData = new FormData()
-    formData.set("groupId", group.id)
-    formData.set("title", expenseDesc.trim())
-    formData.set("amount", (brlAmount / 100).toFixed(2))
-    formData.set("splitType", "EQUAL")
-    formData.set("paidBy", user.id)
-    formData.set("expenseDate", expenseDate)
-    formData.set("currency", expenseCurrency)
-    if (expenseCategory) formData.set("categoryId", expenseCategory)
-    expenseParticipants.forEach(id => formData.append("participants", id))
+  function openEdit(exp: ExpenseData) {
+    setEditing({
+      id: exp.id,
+      groupId: group.id,
+      title: exp.title,
+      originalAmount: exp.originalAmount,
+      amount: exp.amount,
+      currency: exp.currency,
+      paidBy: exp.paidBy,
+      categoryId: exp.category?.id ?? null,
+      expenseDate: exp.expenseDate,
+      splitType: exp.splitType,
+      participants: exp.participants,
+    })
+    setFormOpen(true)
+  }
 
+  async function handleDelete() {
+    if (!deleting) return
+    setDeleteSaving(true)
     try {
-      const result = await createExpenseFromDashboard(formData)
+      const result = await deleteExpense(deleting.id, group.id)
       if (result?.error) {
         toast.error(result.error)
       } else {
-        toast.success("Despesa adicionada!")
-        setShowExpenseModal(false)
-        setExpenseDesc("")
-        setExpenseAmount("")
+        toast.success("Despesa excluída")
+        setDeleting(null)
         router.refresh()
       }
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao criar despesa")
     } finally {
-      setExpenseSaving(false)
+      setDeleteSaving(false)
     }
   }
 
-  // Edit modal state
-  const [editingExpense, setEditingExpense] = useState<ExpenseData | null>(null)
-  const [editDesc, setEditDesc] = useState("")
-  const [editAmount, setEditAmount] = useState("")
-  const [editDate, setEditDate] = useState("")
-  const [editCategory, setEditCategory] = useState("")
-  const [editSaving, setEditSaving] = useState(false)
-  const [editParticipants, setEditParticipants] = useState<Set<string>>(new Set())
-  const [editPaidBy, setEditPaidBy] = useState("")
-
-  function openEditModal(exp: ExpenseData) {
-    setEditingExpense(exp)
-    setEditDesc(exp.title)
-    setEditAmount((exp.amount / 100).toFixed(2).replace(".", ","))
-    setEditDate(exp.expenseDate.split("T")[0])
-    setEditCategory("")
-    setEditPaidBy(exp.paidBy)
-    setEditParticipants(new Set(exp.participants.map(p => p.userId)))
-  }
-
-  async function handleUpdateExpense(e: React.FormEvent) {
-    e.preventDefault()
-    if (!editingExpense) return
-    if (!editDesc.trim() || !editAmount) return
-
-    setEditSaving(true)
-    const formData = new FormData()
-    formData.set("expenseId", editingExpense.id)
-    formData.set("groupId", group.id)
-    formData.set("title", editDesc.trim())
-    formData.set("amount", editAmount.replace(",", "."))
-    formData.set("expenseDate", editDate)
-    formData.set("splitType", "EQUAL")
-    formData.set("paidBy", editPaidBy)
-    if (editCategory) formData.set("categoryId", editCategory)
-    editParticipants.forEach(id => formData.append("participants", id))
-
+  async function handleResolvePayment(paymentId: string, accept: boolean) {
+    setResolvingPaymentId(paymentId)
     try {
-      const result = await updateExpense(formData)
+      const result = accept ? await confirmPayment(paymentId) : await rejectPayment(paymentId)
       if (result?.error) {
         toast.error(result.error)
       } else {
-        toast.success("Despesa atualizada!")
-        setEditingExpense(null)
+        toast.success(accept ? "Recebimento confirmado" : "Pagamento marcado como não recebido")
         router.refresh()
       }
     } catch (err: any) {
-      toast.error(err.message || "Erro ao atualizar despesa")
+      toast.error(err.message || "Erro ao atualizar pagamento")
     } finally {
-      setEditSaving(false)
+      setResolvingPaymentId(null)
     }
   }
+
+  async function handleMarkPaid() {
+    if (!paying) return
+    setPaymentSaving(true)
+    const formData = new FormData()
+    formData.set("groupId", group.id)
+    formData.set("amountInCents", String(paying.amount))
+    try {
+      let result
+      if (paying.mode === "pay") {
+        formData.set("toUserId", paying.toUserId)
+        result = await registerPayment(formData)
+      } else {
+        formData.set("fromUserId", paying.fromUserId)
+        result = await markPaymentReceived(formData)
+      }
+      if (result?.error) {
+        toast.error(result.error)
+      } else {
+        toast.success(paying.mode === "pay"
+          ? `Pagamento marcado. ${firstName(paying.toUserId)} precisa confirmar.`
+          : `Recebimento de ${firstName(paying.fromUserId)} confirmado.`)
+        setPaying(null)
+        router.refresh()
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao registrar pagamento")
+    } finally {
+      setPaymentSaving(false)
+    }
+  }
+
+  const otherName = paying ? firstName(paying.mode === "pay" ? paying.toUserId : paying.fromUserId) : ""
 
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      {/* Header */}
-      <Flex bg="white" px={{ base: 4, md: 6 }} py={3} borderBottom="1px" borderColor="gray.200" align="center" justify="space-between">
-        <Flex align="center" gap={3} minW={0} flex={1}>
-          <Link href="/dashboard" style={{ color: "inherit", textDecoration: "none", flexShrink: 0 }}>
-            <Icon as={ArrowLeft} boxSize={5} color="gray.500" />
-          </Link>
-          <Heading as="h1" size={{ base: "md", md: "lg" }} truncate maxW={{ base: "180px", md: "300px" }}>{group.name}</Heading>
-        </Flex>
-        {isAdmin && (
-          <Button variant="ghost" size="sm" asChild>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader
+        title={group.name}
+        backHref="/dashboard"
+        backLabel="Voltar para o início"
+        actions={isAdmin && (
+          <IconButton asChild aria-label="Configurações do grupo" variant="ghost" size="sm" w={10} h={10} borderRadius="button" color="fg.muted">
             <Link href={`/groups/${group.id}/settings`}>
-              <Settings size={16} />
+              <Icon as={Settings} boxSize={5} />
             </Link>
-          </Button>
+          </IconButton>
         )}
-      </Flex>
+      />
 
-      {/* Content */}
       <Box flex={1} maxW="640px" mx="auto" w="full" p={{ base: 4, md: 6 }}>
         <Stack gap={6}>
           {/* Balance Card */}
-          <Box p={5} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white">
-            <Text fontSize="sm" color="gray.500" mb={1}>Seu saldo no grupo</Text>
-            <Text fontSize="2xl" fontWeight="bold" color={
-              user.balance > 0 ? "green.600" : user.balance < 0 ? "red.500" : "gray.500"
+          <Box p={5} borderRadius="card" borderWidth="1px" borderColor="border.card" bg="bg.card">
+            <Text fontSize="sm" color="fg.muted" mb={1}>Seu saldo no grupo</Text>
+            <Text fontSize="3xl" fontWeight="semibold" letterSpacing="tight" color={
+              user.balance > 0 ? "positive" : user.balance < 0 ? "negative" : "fg"
             }>
-              {user.balance > 0 ? "+ " : user.balance < 0 ? "- " : ""}
+              {user.balance > 0 ? "+" : user.balance < 0 ? "−" : ""}
               {formatCurrency(Math.round(Math.abs(user.balance)))}
             </Text>
-            <Link href={`/groups/${group.id}/settle`} style={{ textDecoration: "none" }}>
-              <Text fontSize="sm" color="brand.600" mt={1} _hover={{ textDecoration: "underline" }}>
-                Ver liquidação →
-              </Text>
-            </Link>
+            <Text fontSize="sm" color="fg.subtle" mt={1}>
+              {user.balance > 0 ? "Você tem a receber" : user.balance < 0 ? "Você deve neste grupo" : "Tudo quitado"}
+            </Text>
           </Box>
 
           {/* Members */}
           <Box>
-            <Text fontSize="sm" fontWeight="medium" color="gray.500" mb={2}>Membros</Text>
+            <Text fontSize="sm" fontWeight="medium" color="fg.muted" mb={2}>Membros</Text>
             <Flex flexWrap="wrap" gap={2}>
               {members.map(m => (
-                <Flex key={m.id} align="center" gap={2} px={3} py={1.5} borderRadius="full" borderWidth="1px" borderColor="gray.200" bg="white">
-                  <Box w={5} h={5} borderRadius="full" bg="brand.100" display="flex" alignItems="center" justifyContent="center" fontSize="10px" fontWeight="medium">
+                <Flex key={m.id} align="center" gap={2} px={3} h={9} borderRadius="full" borderWidth="1px" borderColor="border.card" bg="bg.card">
+                  <Box w={6} h={6} borderRadius="full" bg="gray.900" color="white" display="flex" alignItems="center" justifyContent="center" fontSize="11px" fontWeight="semibold" aria-hidden>
                     {m.initials}
                   </Box>
                   <Text fontSize="sm">{m.isCurrentUser ? "Você" : m.name.split(" ")[0]}</Text>
-                  {m.role === "OWNER" && <Text fontSize="10px" color="gray.400">admin</Text>}
+                  {m.role === "OWNER" && <Text fontSize="xs" color="fg.muted">admin</Text>}
                 </Flex>
               ))}
               {isAdmin && (
                 <>
-                  <Button variant="outline" size="sm" px={4} py={1.5} borderRadius="button" asChild>
+                  <Button variant="outline" size="sm" h={9} px={4} borderRadius="button" asChild>
                     <Link href={`/groups/${group.id}/invite`}>
                       Convidar
                     </Link>
                   </Button>
-                  <Button variant="outline" size="sm" px={4} py={1.5} borderRadius="button" onClick={async () => {
+                  <Button variant="outline" size="sm" h={9} px={4} borderRadius="button" onClick={async () => {
                       const { createShareableInvite } = await import("@/lib/actions")
                       const result = await createShareableInvite(group.id)
                       if (result?.error) {
-                        const { toast } = await import("sonner")
                         toast.error(result.error)
                       } else if (result?.token) {
                         const link = `${window.location.origin}/invite/${result.token}`
                         await navigator.clipboard.writeText(link)
-                        const { toast } = await import("sonner")
                         toast.success("Link de convite copiado!")
                       }
                     }}
                   >
-                    Compartilhar
+                    Copiar link
                   </Button>
                 </>
               )}
@@ -219,25 +242,105 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
           </Box>
 
           {/* Settlements */}
-          {userSettlements.length > 0 && (
-            <Box p={4} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white">
-              <Text fontSize="sm" fontWeight="medium" color="gray.500" mb={2}>Acertos pendentes</Text>
+          {(settlements.length > 0 || settlementRows.length > 0) && (
+            <Box px={5} py={4} borderRadius="card" borderWidth="1px" borderColor="border.card" bg="bg.card">
+              <Text fontSize="sm" fontWeight="medium" mb={1}>Acertos pendentes</Text>
+              <Text fontSize="xs" color="fg.muted" mb={2}>A forma com menos transferências para zerar o grupo.</Text>
               <Stack gap={0}>
-                {userSettlements.map((s, i) => (
-                  <Box key={i}>
-                    {i > 0 && <Separator />}
-                    <Flex py={3} justify="space-between" align="center">
-                      <Text fontSize="sm">
-                        {s.fromUserId === user.id
-                          ? `Você deve ${members.find(m => m.id === s.toUserId)?.name.split(" ")[0] || "alguém"}`
-                          : `${members.find(m => m.id === s.fromUserId)?.name.split(" ")[0] || "Alguém"} deve você`}
-                      </Text>
-                      <Text fontWeight="semibold" fontSize="sm" color={s.fromUserId === user.id ? "red.500" : "green.600"}>
-                        {formatCurrency(Math.abs(Math.round(s.amount)))}
-                      </Text>
-                    </Flex>
+                {settlementRows.map((s, i) => {
+                  const isPaying = s.fromUserId === user.id
+                  const pending = s.pending
+                  return (
+                    <Box key={`${s.fromUserId}-${s.toUserId}`}>
+                      {i > 0 && <Separator />}
+                      <Flex py={3} justify="space-between" align={{ base: "stretch", sm: "center" }} gap={3} direction={{ base: pending && !isPaying ? "column" : "row", sm: "row" }}>
+                        <Box minW={0}>
+                          <Text fontSize="sm">
+                            {pending
+                              ? isPaying
+                                ? `Você marcou como pago para ${firstName(s.toUserId)}`
+                                : `${firstName(s.fromUserId)} marcou como pago`
+                              : isPaying ? `Você deve a ${firstName(s.toUserId)}` : `${firstName(s.fromUserId)} deve a você`}
+                          </Text>
+                          <Text fontSize="md" fontWeight="semibold" color={pending ? "fg" : isPaying ? "negative" : "positive"}>
+                            {formatCurrency(pending ? pending.amount : s.amount)}
+                          </Text>
+                          {pending && (
+                            <Text fontSize="xs" color="fg.muted" mt={0.5}>
+                              {isPaying
+                                ? `Aguardando ${firstName(s.toUserId)} confirmar o recebimento`
+                                : "Confira se o valor chegou antes de confirmar"}
+                            </Text>
+                          )}
+                        </Box>
+                        {pending ? (
+                          isPaying ? null : (
+                            <HStack gap={2} flexShrink={0}>
+                              <Button variant="ghost" size="sm" px={3} borderRadius="button" disabled={resolvingPaymentId !== null} onClick={() => handleResolvePayment(pending.id, false)}>
+                                Não recebi
+                              </Button>
+                              <Button colorPalette="green" size="sm" px={4} borderRadius="button" loading={resolvingPaymentId === pending.id} disabled={resolvingPaymentId !== null} onClick={() => handleResolvePayment(pending.id, true)}>
+                                Confirmar recebimento
+                              </Button>
+                            </HStack>
+                          )
+                        ) : (
+                          <Button
+                            variant="outline" size="sm" px={4} borderRadius="button" flexShrink={0}
+                            onClick={() => setPaying({ ...s, mode: isPaying ? "pay" : "receive" })}
+                          >
+                            Marcar como pago
+                          </Button>
+                        )}
+                      </Flex>
+                    </Box>
+                  )
+                })}
+                {otherSettlements.length > 0 && (
+                  <Box pt={settlementRows.length > 0 ? 3 : 0} mt={settlementRows.length > 0 ? 1 : 0} borderTopWidth={settlementRows.length > 0 ? "1px" : "0"} borderColor="border.card">
+                    <Text fontSize="xs" color="fg.muted" mb={1}>Entre outros membros</Text>
+                    {otherSettlements.map(s => (
+                      <Flex key={`${s.fromUserId}-${s.toUserId}`} py={1.5} justify="space-between" fontSize="sm" color="fg.muted">
+                        <Text>{firstName(s.fromUserId)} → {firstName(s.toUserId)}</Text>
+                        <Text>{formatCurrency(s.amount)}</Text>
+                      </Flex>
+                    ))}
                   </Box>
-                ))}
+                )}
+              </Stack>
+            </Box>
+          )}
+
+          {/* Payment history */}
+          {payments.length > 0 && (
+            <Box px={5} py={4} borderRadius="card" borderWidth="1px" borderColor="border.card" bg="bg.card">
+              <Text fontSize="sm" fontWeight="medium" mb={2}>Pagamentos</Text>
+              <Stack gap={0}>
+                {payments.map((p, i) => {
+                  const status = PAYMENT_STATUS[p.status] ?? { label: p.status, color: "fg.muted" }
+                  return (
+                    <Box key={p.id}>
+                      {i > 0 && <Separator />}
+                      <Flex py={2.5} justify="space-between" align="center" gap={3}>
+                        <Box minW={0}>
+                          <Text fontSize="sm">
+                            {p.fromUserId === user.id
+                              ? `Você pagou ${firstName(p.toUserId)}`
+                              : p.toUserId === user.id
+                                ? `${firstName(p.fromUserId)} pagou você`
+                                : `${firstName(p.fromUserId)} pagou ${firstName(p.toUserId)}`}
+                          </Text>
+                          <Text fontSize="xs" color="fg.muted">
+                            {formatDateShort(p.createdAt)} · <Text as="span" color={status.color}>{status.label}</Text>
+                          </Text>
+                        </Box>
+                        <Text fontSize="sm" fontWeight="medium" flexShrink={0} color={p.status === "REJECTED" ? "fg.muted" : "fg"} textDecoration={p.status === "REJECTED" ? "line-through" : undefined}>
+                          {formatCurrency(p.amount)}
+                        </Text>
+                      </Flex>
+                    </Box>
+                  )
+                })}
               </Stack>
             </Box>
           )}
@@ -245,375 +348,140 @@ export default function GroupDetailClient({ group, user, members, isAdmin, expen
           {/* Expenses */}
           <Box>
             <Flex justify="space-between" align="center" mb={3}>
-              <Heading size="md">Despesas</Heading>
-              <Button colorPalette="green" size="sm" px={4} py={2} borderRadius="button" onClick={() => setShowExpenseModal(true)}>
-                Nova
+              <Heading as="h2" size="md">Despesas</Heading>
+              <Button colorPalette="green" size="sm" px={4} borderRadius="button" onClick={openCreate}>
+                <Icon as={Plus} boxSize={4} aria-hidden />
+                Nova despesa
               </Button>
             </Flex>
 
             {expenses.length === 0 ? (
-              <Box p={12} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white" textAlign="center">
-                <Icon as={Receipt} boxSize={10} color="gray.300" />
-                <Text fontWeight="semibold">Nenhuma despesa ainda</Text>
-                <Text fontSize="sm" color="gray.500" mt={1}>Toque no + para adicionar a primeira despesa</Text>
-              </Box>
+              <VStack p={10} gap={2} borderRadius="card" borderWidth="1px" borderColor="border.card" bg="bg.card" textAlign="center">
+                <Icon as={Receipt} boxSize={6} color="fg.subtle" strokeWidth={1.5} />
+                <Text fontWeight="medium">Nenhuma despesa ainda</Text>
+                <Text fontSize="sm" color="fg.muted">Use “Nova despesa” para adicionar a primeira.</Text>
+              </VStack>
             ) : (
-              <Stack gap={2}>
-                {expenses.map(expense => {
-                  const userParticipant = expense.participants.find(p => p.userId === user.id)
-                  const userShare = userParticipant ? Number(userParticipant.shareAmount) : 0
+              <Box px={5} borderRadius="card" borderWidth="1px" borderColor="border.card" bg="bg.card">
+                {expenses.map((expense, i) => {
                   const isPayer = expense.paidBy === user.id
-                  const canDelete = isAdmin || (expense.paidBy === user.id && (Date.now() - new Date(expense.createdAt).getTime()) / (1000 * 60 * 60) <= 24)
+                  const myShare = expense.participants.find(p => p.userId === user.id)?.share ?? 0
+                  const others = expense.participants.filter(p => p.userId !== expense.paidBy && p.share > 0)
+                  const lent = others.reduce((acc, p) => acc + p.share, 0)
+                  const settled = isPayer
+                    ? others.every(p => (pairBalances[p.userId] ?? 0) >= 0)
+                    : (pairBalances[expense.paidBy] ?? 0) <= 0
+                  const canEdit = isAdmin || isPayer
+                  const canDelete = isAdmin || (isPayer && Date.now() - new Date(expense.createdAt).getTime() <= 24 * 60 * 60 * 1000)
+                  const foreign = expense.currency !== "BRL"
+                  const CategoryIcon = getCategoryIcon(expense.category?.name)
+
+                  let status: { text: string; color: string } | null = null
+                  if (isPayer && lent > 0) {
+                    status = settled
+                      ? { text: `Você emprestou ${formatCurrency(lent)} · recebido`, color: "fg.muted" }
+                      : { text: `Você emprestou ${formatCurrency(lent)}`, color: "positive" }
+                  } else if (!isPayer && myShare > 0) {
+                    status = settled
+                      ? { text: `Sua parte ${formatCurrency(myShare)} · quitada`, color: "fg.muted" }
+                      : { text: `Sua parte ${formatCurrency(myShare)}`, color: "negative" }
+                  }
 
                   return (
-                    <Box key={expense.id} p={4} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white" _hover={{ bg: "gray.50" }} transition="background 0.15s" role="group">
-                      <Flex justify="space-between" align="flex-start" gap={3}>
-                        <Box flex={1} minW={0}>
-                          <Flex align="center" gap={2} mb={1}>
-                            <Text fontSize="xs" color="gray.400">{formatDateShort(expense.expenseDate)}</Text>
-                            {expense.category && (
-                              <Text fontSize="xs" px={2} py={0.5} borderRadius="full" bg="gray.50" borderWidth="1px" borderColor="gray.200">
-                                {expense.category.icon} {expense.category.name}
-                              </Text>
-                            )}
-                          </Flex>
-                          <Text fontWeight="medium" truncate>{expense.title}</Text>
-                          <Text fontSize="sm" color="gray.500" mt={0.5}>
-                            {isPayer
-                              ? `Você pagou ${formatCurrency(Number(expense.amount))}`
-                              : `${expense.payer.name?.split(" ")[0]} pagou ${formatCurrency(Number(expense.amount))}`}
-                          </Text>
-                          {!isPayer && userShare > 0 && (
-                            <Text fontSize="sm" fontWeight="medium" color="red.500" mt={0.5}>
-                              Você deve {formatCurrency(userShare)}
-                            </Text>
-                          )}
-                          {isPayer && userShare > 0 && (
-                            <Text fontSize="sm" fontWeight="medium" color="green.600" mt={0.5}>
-                              Você emprestou {formatCurrency(Number(expense.amount) - userShare)}
-                            </Text>
-                          )}
-                        </Box>
-                        <Flex align="center" gap={2} flexShrink={0}>
-                          <Text fontSize="sm" fontWeight="semibold">{formatCurrency(Number(expense.amount))}</Text>
-                          <Box
-                            as="button"
-                            onClick={() => openEditModal(expense)}
-                            w={7} h={7} borderRadius="md"
-                            display="flex" alignItems="center" justifyContent="center"
-                            _hover={{ bg: "gray.100" }}
-                            transition="all 0.15s"
-                            title="Editar despesa"
-                          >
-                            <Icon as={Pencil} boxSize={3.5} color="gray.400" />
-                          </Box>
-                          <DeleteExpenseButton expenseId={expense.id} groupId={group.id} canDelete={canDelete} />
-                        </Flex>
-                      </Flex>
-
-                      {/* Participants preview */}
-                      <Flex align="center" gap={1} mt={2}>
-                        {expense.participants.slice(0, 4).map(p => (
-                          <Box key={p.userId} w={5} h={5} borderRadius="full" bg="brand.100" display="flex" alignItems="center" justifyContent="center" fontSize="9px" title={p.user.name || ""}>
-                            {p.user.name?.[0]?.toUpperCase()}
-                          </Box>
-                        ))}
-                        {expense.participants.length > 4 && (
-                          <Text fontSize="xs" color="gray.400">+{expense.participants.length - 4}</Text>
+                    <Grid
+                      key={expense.id} templateColumns="40px minmax(0, 1fr) auto auto" columnGap={3} alignItems="center"
+                      py={4} borderTopWidth={i > 0 ? "1px" : 0} borderColor="border.card"
+                    >
+                      <Box w={10} h={10} borderRadius="lg" bg="gray.100" display="flex" alignItems="center" justifyContent="center">
+                        <Icon as={CategoryIcon} boxSize={4} color="fg.muted" strokeWidth={1.75} aria-hidden />
+                      </Box>
+                      <Box minW={0}>
+                        <Text fontSize="sm" fontWeight="medium" truncate>{expense.title}</Text>
+                        <Text fontSize="xs" color="fg.muted" mt={0.5}>
+                          {formatDateShort(expense.expenseDate)} · {isPayer ? "você pagou" : `${expense.payerName.split(" ")[0] || "Alguém"} pagou`}
+                          {expense.category && ` · ${expense.category.name}`}
+                        </Text>
+                        {status && (
+                          <HStack gap={1} mt={0.5} fontSize="xs" fontWeight="medium" color={status.color}>
+                            {settled && <Icon as={CheckCircle2} boxSize={3.5} color="positive" aria-hidden />}
+                            <Text>{status.text}</Text>
+                          </HStack>
                         )}
-                      </Flex>
-                    </Box>
+                      </Box>
+                      <Box textAlign="right">
+                        <Text fontSize="sm" fontWeight="semibold" whiteSpace="nowrap">
+                          {formatCurrency(foreign ? expense.originalAmount : expense.amount, expense.currency)}
+                        </Text>
+                        {foreign && <Text fontSize="xs" color="fg.muted" mt={0.5} whiteSpace="nowrap">≈ {formatCurrency(expense.amount)}</Text>}
+                      </Box>
+                      <ExpenseMenu
+                        title={expense.title}
+                        onEdit={canEdit ? () => openEdit(expense) : undefined}
+                        onDelete={canDelete ? () => setDeleting(expense) : undefined}
+                      />
+                    </Grid>
                   )
                 })}
-              </Stack>
+              </Box>
             )}
           </Box>
         </Stack>
       </Box>
 
-      {/* Quick Expense Modal */}
-      <Dialog.Root open={showExpenseModal} onOpenChange={(e) => setShowExpenseModal(e.open)}>
+      <ExpenseFormDialog
+        open={formOpen}
+        onClose={() => setFormOpen(false)}
+        groups={formGroups}
+        categories={categories}
+        currentUserId={user.id}
+        expense={editing}
+        defaultGroupId={group.id}
+      />
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Excluir despesa?"
+        description={deleting ? `"${deleting.title}" sai da lista e o saldo de quem dividiu é recalculado.` : ""}
+        confirmLabel="Excluir despesa"
+        destructive
+        loading={deleteSaving}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleting(null)}
+      />
+
+      {/* Mark as paid confirmation */}
+      <Dialog.Root
+        role="alertdialog"
+        open={paying !== null}
+        onOpenChange={(e) => { if (!e.open && !paymentSaving) setPaying(null) }}
+      >
         <Dialog.Backdrop bg="blackAlpha.600" />
         <Dialog.Positioner alignItems="center" px={{ base: 2, md: 0 }}>
-          <Dialog.Content bg="bg.panel" borderRadius="card" maxW={{ base: "100%", md: "480px" }} maxH="85vh" overflowY="auto" onClick={(e) => e.stopPropagation()}>
-            <Flex align="center" justify="space-between" p={6} pb={2}>
-              <Heading size="md" fontWeight="semibold">Adicionar despesa</Heading>
-              <Dialog.CloseTrigger asChild>
-                <Box w={8} h={8} borderRadius="full" display="flex" alignItems="center" justifyContent="center" cursor="pointer" _hover={{ bg: "gray.100" }}>
-                  <Icon as={X} boxSize={5} color="gray.500" />
-                </Box>
-              </Dialog.CloseTrigger>
-            </Flex>
-
-            <form onSubmit={handleQuickExpense} style={{ padding: "24px 24px 16px" }}>
-              {/* Grupo (read-only) */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Grupo</Field.Label>
-                <Text fontSize="md" fontWeight="medium" color="gray.700">{group.name}</Text>
-              </Field.Root>
-
-              {/* Descrição */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Descrição</Field.Label>
-                <Input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)}
-                  placeholder="ex: Jantar Japonês, Conta de Luz" required autoFocus
-                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
-                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-              </Field.Root>
-
-              {/* Valor */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Valor</Field.Label>
-                <Flex gap={2}>
-                  <NativeSelect.Root size="lg" w="120px" flexShrink={0}>
-                    <NativeSelect.Field ps="4" pe="8" value={expenseCurrency} onChange={e => setExpenseCurrency(e.target.value)}>
-                      <option value="BRL">BRL (R$)</option>
-                      <option value="USD">USD ($)</option>
-                      <option value="EUR">EUR (€)</option>
-                    </NativeSelect.Field>
-                    <NativeSelect.Indicator />
-                  </NativeSelect.Root>
-                  <Input type="text" inputMode="decimal" placeholder="0,00" required flex={1}
-                    value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)}
-                    size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
-                    _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-                </Flex>
-              </Field.Root>
-
-              {/* Data */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Data</Field.Label>
-                <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)}
-                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
-                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-              </Field.Root>
-
-              {/* Categoria */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Categoria</Field.Label>
-                <NativeSelect.Root size="lg">
-                  <NativeSelect.Field ps="5" pe="10" value={expenseCategory} onChange={e => setExpenseCategory(e.target.value)}>
-                    <option value="">Geral</option>
-                    <option value="cat-moradia">Moradia</option>
-                    <option value="cat-alimentação">Alimentação</option>
-                    <option value="cat-transporte">Transporte</option>
-                    <option value="cat-lazer">Lazer</option>
-                    <option value="cat-contas">Contas</option>
-                    <option value="cat-supermercado">Supermercado</option>
-                    <option value="cat-saúde">Saúde</option>
-                    <option value="cat-viagem">Viagem</option>
-                    <option value="cat-tecnologia">Tecnologia</option>
-                    <option value="cat-outros">Outros</option>
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              </Field.Root>
-
-              {/* Dividir com */}
-              <Field.Root mb={6}>
-                <Field.Label color="fg.muted">Dividir com</Field.Label>
-                <Flex flexWrap="wrap" gap={2}>
-                  {groupMembers.map(m => {
-                    const selected = expenseParticipants.has(m.id)
-                    return (
-                      <Box
-                        key={m.id}
-                        as="button"
-                        onClick={() => {
-                          const next = new Set(expenseParticipants)
-                          if (next.has(m.id)) next.delete(m.id)
-                          else next.add(m.id)
-                          setExpenseParticipants(next)
-                        }}
-                        px={3} py={1.5}
-                        borderRadius="full"
-                        borderWidth="1px"
-                        fontSize="sm"
-                        borderColor={selected ? "brand.500" : "gray.200"}
-                        bg={selected ? "brand.50" : "white"}
-                        color={selected ? "brand.600" : "gray.600"}
-                        fontWeight={selected ? "medium" : "normal"}
-                        cursor="pointer"
-                        _hover={{ borderColor: selected ? "brand.500" : "gray.300" }}
-                        transition="all 0.15s"
-                      >
-                        {m.id === user.id ? "Você" : m.name.split(" ")[0]}
-                      </Box>
-                    )
-                  })}
-                </Flex>
-                <Text fontSize="xs" color="gray.400" mt={1}>
-                  Dividido igualmente entre {expenseParticipants.size} pessoa{expenseParticipants.size !== 1 ? "s" : ""}.
-                </Text>
-              </Field.Root>
-
-              {/* Submit */}
-              <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={expenseSaving}>
-                Salvar despesa
+          <Dialog.Content bg="bg.panel" borderRadius="card" maxW={{ base: "100%", md: "400px" }} p={6}>
+            <Dialog.Title fontSize="lg" fontWeight="semibold">
+              {paying?.mode === "receive" ? `${otherName} já pagou você?` : "Marcar como pago"}
+            </Dialog.Title>
+            <Dialog.Description fontSize="sm" color="fg.muted" mt={2}>
+              {paying?.mode === "receive"
+                ? "Confirme só se o dinheiro já chegou para você."
+                : `Use quando você já pagou ${otherName} por fora do app (Pix, dinheiro, transferência).`}
+            </Dialog.Description>
+            <Text fontSize="3xl" fontWeight="semibold" letterSpacing="tight" mt={5}>
+              {paying ? formatCurrency(paying.amount) : ""}
+            </Text>
+            <Text fontSize="sm" color="fg.muted" mt={2}>
+              {paying?.mode === "receive"
+                ? "Como é você quem recebe, o saldo de vocês é atualizado na hora."
+                : `${otherName} confere e confirma o recebimento. Até lá, o acerto continua na lista como aguardando confirmação.`}
+            </Text>
+            <VStack gap={2} mt={6}>
+              <Button colorPalette="green" borderRadius="button" w="full" size="lg" loading={paymentSaving} onClick={handleMarkPaid}>
+                {paying?.mode === "receive" ? "Confirmar que recebi" : "Marcar como pago"}
               </Button>
-            </form>
-          </Dialog.Content>
-        </Dialog.Positioner>
-      </Dialog.Root>
-
-      {/* Edit Expense Modal */}
-      <Dialog.Root open={editingExpense !== null} onOpenChange={(e) => { if (!e.open) setEditingExpense(null) }}>
-        <Dialog.Backdrop bg="blackAlpha.600" />
-        <Dialog.Positioner alignItems="center" px={{ base: 2, md: 0 }}>
-          <Dialog.Content bg="bg.panel" borderRadius="card" maxW={{ base: "100%", md: "480px" }} maxH="85vh" overflowY="auto" onClick={(e) => e.stopPropagation()}>
-            <Flex align="center" justify="space-between" p={6} pb={2}>
-              <Heading size="md" fontWeight="semibold">Editar despesa</Heading>
-              <Dialog.CloseTrigger asChild>
-                <Box w={8} h={8} borderRadius="full" display="flex" alignItems="center" justifyContent="center" cursor="pointer" _hover={{ bg: "gray.100" }}>
-                  <Icon as={X} boxSize={5} color="gray.500" />
-                </Box>
-              </Dialog.CloseTrigger>
-            </Flex>
-
-            <form onSubmit={handleUpdateExpense} style={{ padding: "24px 24px 16px" }}>
-              {/* Grupo (read-only) */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Grupo</Field.Label>
-                <Text fontSize="md" fontWeight="medium" color="gray.700">{group.name}</Text>
-              </Field.Root>
-
-              {/* Descrição */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Descrição</Field.Label>
-                <Input value={editDesc} onChange={e => setEditDesc(e.target.value)}
-                  placeholder="ex: Jantar Japonês" required size="lg" px="5"
-                  bg="white" borderWidth="1px" borderColor="border"
-                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-              </Field.Root>
-
-              {/* Valor */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Valor</Field.Label>
-                <Input type="text" inputMode="decimal" placeholder="0,00" required
-                  value={editAmount} onChange={e => setEditAmount(e.target.value)}
-                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
-                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-              </Field.Root>
-
-              {/* Data */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Data</Field.Label>
-                <Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                  size="lg" px="5" bg="white" borderWidth="1px" borderColor="border"
-                  _focus={{ borderColor: "brand.500", boxShadow: "none" }} />
-              </Field.Root>
-
-              {/* Categoria */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Categoria</Field.Label>
-                <NativeSelect.Root size="lg">
-                  <NativeSelect.Field ps="5" pe="10" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
-                    <option value="">Geral</option>
-                    <option value="cat-moradia">Moradia</option>
-                    <option value="cat-alimentação">Alimentação</option>
-                    <option value="cat-transporte">Transporte</option>
-                    <option value="cat-lazer">Lazer</option>
-                    <option value="cat-contas">Contas</option>
-                    <option value="cat-supermercado">Supermercado</option>
-                    <option value="cat-saúde">Saúde</option>
-                    <option value="cat-viagem">Viagem</option>
-                    <option value="cat-tecnologia">Tecnologia</option>
-                    <option value="cat-outros">Outros</option>
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              </Field.Root>
-
-              {/* Pago por */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Pago por</Field.Label>
-                <NativeSelect.Root size="lg">
-                  <NativeSelect.Field ps="5" pe="10" value={editPaidBy} onChange={e => setEditPaidBy(e.target.value)}>
-                    {members.map(m => (
-                      <option key={m.id} value={m.id}>{m.isCurrentUser ? "Você" : m.name.split(" ")[0]}</option>
-                    ))}
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              </Field.Root>
-
-              {/* Dividir com */}
-              <Field.Root mb={4}>
-                <Field.Label color="fg.muted">Dividir com</Field.Label>
-                <Flex flexWrap="wrap" gap={2}>
-                  {groupMembers.map(m => {
-                    const selected = editParticipants.has(m.id)
-                    return (
-                      <Box
-                        key={m.id}
-                        as="button"
-                        onClick={() => {
-                          const next = new Set(editParticipants)
-                          if (next.has(m.id)) next.delete(m.id)
-                          else next.add(m.id)
-                          setEditParticipants(next)
-                        }}
-                        px={3} py={1.5}
-                        borderRadius="full"
-                        borderWidth="1px"
-                        fontSize="sm"
-                        borderColor={selected ? "brand.500" : "gray.200"}
-                        bg={selected ? "brand.50" : "white"}
-                        color={selected ? "brand.600" : "gray.600"}
-                        fontWeight={selected ? "medium" : "normal"}
-                        cursor="pointer"
-                        _hover={{ borderColor: selected ? "brand.500" : "gray.300" }}
-                        transition="all 0.15s"
-                      >
-                        {m.id === user.id ? "Você" : m.name.split(" ")[0]}
-                      </Box>
-                    )
-                  })}
-                </Flex>
-                <Text fontSize="xs" color="gray.400" mt={1}>
-                  Dividido igualmente entre {editParticipants.size} pessoa{editParticipants.size !== 1 ? "s" : ""}.
-                </Text>
-              </Field.Root>
-
-              {/* Split Preview */}
-              {(() => {
-                const amountNum = parseFloat(editAmount.replace(",", "."))
-                const amountCents = isNaN(amountNum) ? 0 : Math.round(amountNum * 100)
-                if (amountCents <= 0 || editParticipants.size === 0) return null
-                const participantsList = groupMembers.filter(m => editParticipants.has(m.id))
-
-                const count = participantsList.length
-                const base = Math.floor(amountCents / count)
-                const rem = amountCents - base * count
-                const preview = participantsList.map((p, i) => ({ userId: p.id, amount: i === count - 1 ? base + rem : base }))
-
-                return (
-                  <Box p={4} borderRadius="card" borderWidth="1px" borderColor="gray.200" bg="white" mb={4}>
-                    <Text fontSize="sm" fontWeight="medium" color="gray.600" mb={2}>
-                      <Icon as={Lightbulb} boxSize={4} /> Pré-visualização
-                    </Text>
-                    <Flex direction="column" gap={2}>
-                      {preview.map(p => (
-                        <Flex key={p.userId} justify="space-between" fontSize="sm">
-                          <Text>{groupMembers.find(m => m.id === p.userId)?.name?.split(" ")[0] || "Alguém"}</Text>
-                          <Text fontFamily="mono" fontWeight="medium">{formatCurrency(p.amount)}</Text>
-                        </Flex>
-                      ))}
-                    </Flex>
-                  </Box>
-                )
-              })()}
-
-              {/* Buttons */}
-              <VStack gap={3}>
-                <Button type="submit" colorPalette="green" borderRadius="button" w="full" size="lg" py={3} loading={editSaving}>
-                  Salvar alterações
-                </Button>
-                <Button type="button" variant="outline" borderRadius="button" w="full" size="lg" py={3} onClick={() => setEditingExpense(null)}>
-                  Cancelar
-                </Button>
-              </VStack>
-            </form>
+              <Button variant="ghost" borderRadius="button" w="full" size="lg" disabled={paymentSaving} onClick={() => setPaying(null)}>
+                Cancelar
+              </Button>
+            </VStack>
           </Dialog.Content>
         </Dialog.Positioner>
       </Dialog.Root>

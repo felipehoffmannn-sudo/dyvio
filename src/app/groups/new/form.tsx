@@ -1,24 +1,13 @@
 "use client"
 
-import { Box, Flex, Heading, Input, Text, Textarea, Button } from "@chakra-ui/react"
-import { Icon } from "@chakra-ui/react"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
+import { Box, Flex, Input, Text, Textarea, Button } from "@chakra-ui/react"
 import { createGroup } from "@/lib/actions"
+import { PageHeader } from "@/components/page-header"
 
 export function NewGroupForm() {
   return (
-    <Flex minH="100vh" direction="column" bg="gray.50">
-      {/* Header */}
-      <Flex
-        bg="white" px={6} py={3} borderBottom="1px" borderColor="gray.200"
-        align="center" gap={3}
-      >
-        <Link href="/dashboard" style={{ color: "inherit", textDecoration: "none" }}>
-          <Icon as={ArrowLeft} boxSize={5} color="gray.500" />
-        </Link>
-        <Heading as="h1" size="lg">Novo grupo</Heading>
-      </Flex>
+    <Flex minH="100vh" direction="column" bg="bg.page">
+      <PageHeader title="Novo grupo" backHref="/dashboard/groups" backLabel="Voltar para grupos" />
 
       {/* Form */}
       <Box flex={1} maxW="480px" mx="auto" w="full" p={{ base: 4, md: 8 }}>

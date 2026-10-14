@@ -89,11 +89,14 @@ function calculatePercentSplit(totalCents: number, participants: SplitConfig["pa
   if (Math.abs(totalPct - 100) > 0.01) {
     throw new Error(`Percentages sum to ${totalPct}%, must be 100%`)
   }
-  return participants.map(p => ({
-    userId: p.userId,
-    shareAmount: Math.round(totalCents * (p.percentage || 0) / 100),
-    sharePercentage: p.percentage,
-  }))
+  let distributed = 0
+  return participants.map((p, i) => {
+    const shareAmount = i === participants.length - 1
+      ? totalCents - distributed
+      : Math.round(totalCents * (p.percentage || 0) / 100)
+    distributed += shareAmount
+    return { userId: p.userId, shareAmount, sharePercentage: p.percentage }
+  })
 }
 
 function calculateSharesSplit(totalCents: number, participants: SplitConfig["participants"]): SplitResult {
@@ -474,35 +477,52 @@ export async function auditGroup(groupId: string): Promise<{ consistent: boolean
 }
 
 /**
- * Full recalculation of a group's ledger.
- * Zeros all entries and reapplies every active expense chronologically.
+ * Full recalculation of a group's ledger from its source of truth:
+ * active expenses minus confirmed payments.
  */
 export async function fullRecalc(groupId: string) {
-  // Mark all current entries as not current
-  await prisma.ledgerEntry.updateMany({
-    where: { groupId, isCurrent: true },
-    data: { isCurrent: false },
-  })
+  const [expenses, payments] = await Promise.all([
+    prisma.expense.findMany({
+      where: { groupId, status: "ACTIVE" },
+      include: { participants: true },
+    }),
+    prisma.payment.findMany({
+      where: { groupId, status: "CONFIRMED" },
+    }),
+  ])
 
-  // Get all active expenses in chronological order
-  const expenses = await prisma.expense.findMany({
-    where: { groupId, status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-    include: {
-      participants: true,
-    },
-  })
-
-  // Reapply each expense
-  for (const expense of expenses) {
-    const splits: SplitResult = expense.participants.map(p => ({
-      userId: p.userId,
-      shareAmount: Number(p.shareAmount),
-      sharePercentage: p.sharePercentage ? Number(p.sharePercentage) : undefined,
-      shares: p.shares,
-      weight: Number(p.weight),
-    }))
-
-    await updateLedgerOnCreate(expense.id, groupId, expense.paidBy, splits)
+  // owes.get("A:B") = how much A owes B in cents (one direction only)
+  const owes = new Map<string, number>()
+  const add = (debtor: string, creditor: string, amount: number) => {
+    const key = `${debtor}:${creditor}`
+    owes.set(key, (owes.get(key) ?? 0) + amount)
   }
+
+  for (const expense of expenses) {
+    for (const p of expense.participants) {
+      if (p.userId !== expense.paidBy) add(p.userId, expense.paidBy, Number(p.shareAmount))
+    }
+  }
+  for (const payment of payments) {
+    add(payment.fromUserId, payment.toUserId, -Number(payment.amount))
+  }
+
+  const data: Prisma.LedgerEntryCreateManyInput[] = []
+  const seen = new Set<string>()
+  for (const key of Array.from(owes.keys())) {
+    const [a, b] = key.split(":")
+    const pair = [a, b].sort().join(":")
+    if (seen.has(pair)) continue
+    seen.add(pair)
+    const net = (owes.get(`${a}:${b}`) ?? 0) - (owes.get(`${b}:${a}`) ?? 0)
+    data.push(
+      { groupId, userId: a, counterpartyId: b, balance: net },
+      { groupId, userId: b, counterpartyId: a, balance: -net },
+    )
+  }
+
+  await prisma.$transaction([
+    prisma.ledgerEntry.deleteMany({ where: { groupId } }),
+    prisma.ledgerEntry.createMany({ data }),
+  ])
 }
