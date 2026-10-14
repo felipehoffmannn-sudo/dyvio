@@ -4,8 +4,9 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { Box, Flex, Heading, Text, Button, VStack, HStack, Separator, Avatar, Badge } from "@chakra-ui/react"
 import Link from "next/link"
-import { removeMember, archiveGroup, deleteGroup } from "@/lib/actions"
+import { removeMember, archiveGroup } from "@/lib/actions"
 import { PageHeader } from "@/components/page-header"
+import { DeleteGroupButton } from "./delete-group-button"
 
 export default async function GroupSettingsPage({
   params,
@@ -103,14 +104,7 @@ export default async function GroupSettingsPage({
                   <Button colorPalette="red" variant="outline" type="submit" w="full">Arquivar grupo</Button>
                 </form>
               )}
-              {isOwner && (
-                <form action={async () => {
-                  "use server"
-                  await deleteGroup(params.id)
-                }}>
-                  <Button colorPalette="red" type="submit" w="full">Excluir grupo permanentemente</Button>
-                </form>
-              )}
+              <DeleteGroupButton groupId={group.id} groupName={group.name} />
               {!isOwner && (
                 <form action={async () => {
                   "use server"
