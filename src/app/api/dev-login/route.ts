@@ -42,11 +42,13 @@ export async function GET(req: NextRequest) {
   const dest = req.nextUrl.searchParams.get("callbackUrl") || "/dashboard"
   const res = NextResponse.redirect(new URL(dest, req.nextUrl.origin))
 
-  res.cookies.set("next-auth.session-token", token, {
+  // next-auth v4 reads the __Secure- prefixed cookie on HTTPS
+  const secure = req.nextUrl.protocol === "https:"
+  res.cookies.set(secure ? "__Secure-next-auth.session-token" : "next-auth.session-token", token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    secure: false,
+    secure,
     maxAge: 60 * 60 * 24 * 30, // 30 dias
   })
 
